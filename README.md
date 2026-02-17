@@ -12,6 +12,7 @@ Grok 逆向代理，将 Grok 网页端 API 转换为 OpenAI 兼容格式。支�
 - **账号类型检测** — 自动识别 Free / Super 会员账号
 - **流式响应** — 支持 SSE 流式输出
 - **思考过程** — 支持 Thinking 模型的推理过程展示（`<think>` 标签）
+- **搜索过程** — 实时展示 Grok 搜索查询和结果数量
 - **图片支持** — 支持图片上传和图片生成结果缓存
 - **自动清理** — 日志文件、请求日志、图片缓存均支持自动清理，后台可配置上限
 - **管理后台** — Web 可视化管理 Token、会话、统计、日志、API Key、系统配置
@@ -61,7 +62,7 @@ start.bat
 ```
 API Base URL: http://localhost:8000/v1
 API Key: sk-test（默认，可在后台管理）
-Model: grok-4.1-thinking
+Model: grok-4.2
 ```
 
 ## 上下文实现
@@ -135,6 +136,8 @@ Grok 的对话基于两个 ID：
 | `max_image_cache_mb` | `500` | 图片缓存上限（MB） |
 | `max_log_file_mb` | `10` | 日志文件上限（MB） |
 | `log_level` | `INFO` | 日志级别 |
+| `show_thinking` | `true` | 显示思考过程（`<think>` 标签） |
+| `show_search` | `true` | 显示搜索查询和结果数量 |
 
 ## 支持模型
 
@@ -142,15 +145,9 @@ Grok 的对话基于两个 ID：
 |---------|------|
 | `grok-3` | Grok 3 标准 |
 | `grok-3-mini` | Grok 3 Mini Thinking |
-| `grok-3-thinking` | Grok 3 完整思考 |
-| `grok-4` | Grok 4 标准 |
-| `grok-4-mini` | Grok 4 Mini Thinking |
-| `grok-4-thinking` | Grok 4 完整思考 |
-| `grok-4-heavy` | Grok 4 Heavy（需 Super 账号） |
-| `grok-4.1-mini` | Grok 4.1 Mini Thinking |
-| `grok-4.1-fast` | Grok 4.1 快速 |
-| `grok-4.1-expert` | Grok 4.1 专家推理 |
-| `grok-4.1-thinking` | Grok 4.1 完整思考 |
+| `grok-4.2` | Grok 4.2 标准 |
+| `grok-4.2-fast` | Grok 4.2 快速 |
+| `grok-expert` | Grok 专家推理（深度思考） |
 
 未识别的模型名会原样透传给 Grok。
 
@@ -164,7 +161,7 @@ Authorization: Bearer sk-test
 Content-Type: application/json
 
 {
-  "model": "grok-4.1-thinking",
+  "model": "grok-4.2",
   "messages": [
     {"role": "system", "content": "You are a helpful assistant"},
     {"role": "user", "content": "Hello"}
