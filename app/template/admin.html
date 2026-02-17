@@ -495,12 +495,9 @@
 
     <!-- ==================== 系统配置 ==================== -->
     <div id="panelConfig" class="hidden">
-      <div class="panel" style="padding:24px;">
-        <div style="font-size:16px;font-weight:600;margin-bottom:24px;">系统配置</div>
-        <div id="configForm"></div>
-        <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:24px;padding-top:24px;display:flex;justify-content:flex-end;">
-          <button onclick="saveConfig()" class="btn btn-white">保存配置</button>
-        </div>
+      <div id="configForm"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+        <button onclick="saveConfig()" class="btn btn-white">保存配置</button>
       </div>
     </div>
 
@@ -921,21 +918,40 @@
     function renderConfigForm() {
       const form = document.getElementById('configForm');
       const grouped = {};
-      for (const [key, info] of Object.entries(CONFIG_SCHEMA)) { const g = info.group || 'other'; if (!grouped[g]) grouped[g] = []; grouped[g].push({ key, ...info }); }
+      for (const [key, info] of Object.entries(CONFIG_SCHEMA)) {
+        const g = info.group || 'other';
+        if (!grouped[g]) grouped[g] = [];
+        grouped[g].push({ key, ...info });
+      }
       const sorted = Object.entries(grouped).sort((a, b) => (CONFIG_GROUPS[a[0]]?.order ?? 99) - (CONFIG_GROUPS[b[0]]?.order ?? 99));
 
       form.innerHTML = sorted.map(([gk, items]) => {
         const gl = CONFIG_GROUPS[gk]?.label || gk;
-        const ih = items.map(info => {
+        const rows = items.map(info => {
           let inp = '';
-          if (info.type === 'bool') inp = `<input type="checkbox" id="cfg_${info.key}" ${info.value ? 'checked' : ''}>`;
-          else if (info.type === 'select') inp = `<select id="cfg_${info.key}" class="input" style="width:100%;max-width:280px;">${(info.options || []).map(o => `<option value="${o}" ${info.value === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
-          else if (info.type === 'int') inp = `<input type="number" id="cfg_${info.key}" value="${info.value ?? ''}" class="input" style="width:100%;max-width:280px;">`;
-          else if (info.type === 'password') { const hv = info.value && info.value !== ''; inp = `<input type="password" id="cfg_${info.key}" value="" placeholder="${hv ? '已设置（留空则不修改）' : '未设置'}" class="input" style="width:100%;max-width:280px;">`; }
-          else inp = `<input type="text" id="cfg_${info.key}" value="${esc(info.value ?? '')}" class="input" style="width:100%;max-width:280px;">`;
-          return `<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;"><div style="width:180px;flex-shrink:0;"><div style="font-size:13px;font-weight:500;color:#d4d4d8;">${esc(info.label)}</div><div style="font-size:12px;color:#52525b;margin-top:2px;">${esc(info.desc)}</div></div><div style="flex:1;min-width:200px;">${inp}</div></div>`;
+          if (info.type === 'bool') {
+            inp = `<label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="cfg_${info.key}" ${info.value ? 'checked' : ''} style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer;"><span style="font-size:13px;color:#a1a1aa;">${info.value ? '已启用' : '未启用'}</span></label>`;
+          } else if (info.type === 'select') {
+            inp = `<select id="cfg_${info.key}" class="input" style="width:100%;">${(info.options || []).map(o => `<option value="${o}" ${info.value === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+          } else if (info.type === 'int') {
+            inp = `<input type="number" id="cfg_${info.key}" value="${info.value ?? ''}" class="input" style="width:100%;">`;
+          } else if (info.type === 'password') {
+            const hv = info.value && info.value !== '';
+            inp = `<input type="password" id="cfg_${info.key}" value="" placeholder="${hv ? '已设置（留空不修改）' : '未设置'}" class="input" style="width:100%;">`;
+          } else {
+            inp = `<input type="text" id="cfg_${info.key}" value="${esc(info.value ?? '')}" class="input" style="width:100%;">`;
+          }
+          return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+            <div><div style="font-size:13px;font-weight:500;color:#e4e4e7;">${esc(info.label)}</div><div style="font-size:12px;color:#52525b;margin-top:3px;">${esc(info.desc)}</div></div>
+            <div>${inp}</div>
+          </div>`;
         }).join('');
-        return `<div style="margin-bottom:24px;"><div style="font-size:12px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.05em;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:16px;">${esc(gl)}</div><div style="display:flex;flex-direction:column;gap:16px;">${ih}</div></div>`;
+        return `<div class="panel" style="margin-bottom:16px;padding:20px 24px;">
+          <div style="font-size:14px;font-weight:600;color:#fafafa;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+            <span style="width:3px;height:14px;background:#6366f1;border-radius:2px;display:inline-block;"></span>${esc(gl)}
+          </div>
+          <div>${rows}</div>
+        </div>`;
       }).join('');
     }
 
