@@ -134,6 +134,59 @@ GET /v1/models
 GET /health
 ```
 
+## 上下文实现
+
+与大多数逆向代理每次重发完整消息历史不同，本项目通过 Grok 原生的会话机制实现真实上下文：
+
+### 核心原理
+
+Grok 的对话基于两个 ID：
+- **conversationId** — 标识一个对话
+- **responseId** — 标识对话中的每条消息，新消息通过 `parentResponseId` 关联到上一条
+
+本项目在服务端缓存这两个 ID，后续对话只发送新消息，Grok 服务端自动维持完整上下文。
+
+### 对话流程
+
+**首次对话：**
+```
+客户端 → POST /v1/chat/completions（完整消息）
+       → Grok API: POST /conversations/new
+       → 返回 conversationId + responseId
+       → 缓存上下文，计算消息哈希
+       → 分享会话（获取 share_link_id，为跨账号做准备）
+       → 返回响应 + conversation_id
+```
+
+**续接对话（同 Token）：**
+```
+客户端 → POST /v1/chat/completions（新消息 + conversation_id）
+       → 从缓存取出 conversationId + responseId
+       → Grok API: POST /conversations/{id}/responses（只发新消息）
+       → 更新缓存
+       → 返回响应
+```
+
+**续接对话（不同 Token，轮询切换时）：**
+```
+客户端 → 发送新消息
+       → 轮询到不同 Token
+       → 通过 share_link_id 克隆会话到新账号
+       → Grok API: POST /share_links/{id}/clone
+       → 获取新的 conversationId + responseId
+       → 继续对话，上下文无损
+```
+
+### 自动识别
+
+客户端不传 `conversation_id` 也能续接对话。系统基于消息哈希自动匹配：
+
+1. **存储时**：对 `system + 所有 user 消息` 计算 SHA-256 哈希
+2. **查找时**：对 `system + 除最后一条外的 user 消息` 计算哈希
+3. 新一轮对话的「历史部分」哈希 = 上一轮的「完整」哈希 → 匹配成功
+
+这意味着即使客户端（如 ChatGPT-Next-Web）每次重发全部历史，本项目也能识别出是同一个对话，只将最后一条新消息发给 Grok。
+
 ## 管理后台
 
 后台路径：`/admin`
