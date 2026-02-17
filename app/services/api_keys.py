@@ -47,6 +47,20 @@ class ApiKeyManager:
         self.initialized = True
         logger.info(f"[ApiKeyManager] 已加载 {len(self.keys)} 个API Key")
 
+        # 首次运行自动创建默认 key
+        if not self.keys:
+            default_key = "sk-test"
+            self.keys[default_key] = ApiKeyInfo(
+                key=default_key,
+                name="默认Key",
+                enabled=True,
+                created_at=time.time(),
+                last_used=0,
+                request_count=0
+            )
+            await self._save()
+            logger.info(f"[ApiKeyManager] 已创建默认 API Key: {default_key}")
+
     async def _save(self):
         """保存数据"""
         try:
