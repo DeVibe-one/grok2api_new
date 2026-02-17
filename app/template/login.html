@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - Grok2API</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #09090b;
+            color: #fafafa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ===== 浮动背景光球 ===== */
+        .bg-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .bg-orb-1 {
+            width: 400px; height: 400px;
+            background: #3b82f6;
+            top: -100px; left: -100px;
+            animation: orb-float-1 20s ease-in-out infinite;
+        }
+        .bg-orb-2 {
+            width: 350px; height: 350px;
+            background: #8b5cf6;
+            bottom: -80px; right: -80px;
+            animation: orb-float-2 25s ease-in-out infinite;
+        }
+        .bg-orb-3 {
+            width: 250px; height: 250px;
+            background: #6366f1;
+            top: 50%; left: 60%;
+            animation: orb-float-3 18s ease-in-out infinite;
+        }
+        @keyframes orb-float-1 {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(80px, 60px); }
+            50% { transform: translate(40px, 120px); }
+            75% { transform: translate(-30px, 80px); }
+        }
+        @keyframes orb-float-2 {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-60px, -40px); }
+            50% { transform: translate(-100px, -80px); }
+            75% { transform: translate(-40px, -20px); }
+        }
+        @keyframes orb-float-3 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(-80px, 40px) scale(1.1); }
+            66% { transform: translate(60px, -60px) scale(0.9); }
+        }
+
+        /* ===== 主内容 ===== */
+        .login-wrapper {
+            width: 100%; max-width: 400px; padding: 0 24px;
+            position: relative; z-index: 1;
+            animation: content-enter 0.6s ease-out;
+        }
+        @keyframes content-enter {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .brand { text-align: center; margin-bottom: 48px; }
+        .brand h1 {
+            font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #fafafa;
+            animation: title-float 6s ease-in-out infinite;
+        }
+        @keyframes title-float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        .brand p { font-size: 14px; color: #71717a; margin-top: 8px; }
+
+        /* ===== 毛玻璃卡片 ===== */
+        .card {
+            background: rgba(24, 24, 27, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: border-color 0.3s;
+        }
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block; font-size: 13px; font-weight: 500;
+            color: #a1a1aa; margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%; height: 42px; padding: 0 14px;
+            background: rgba(9, 9, 11, 0.6);
+            border: 1px solid rgba(63, 63, 70, 0.6);
+            border-radius: 10px;
+            color: #fafafa; font-size: 14px; outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-input::placeholder { color: #52525b; }
+        .form-input:focus {
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .btn-primary {
+            width: 100%; height: 42px;
+            background: #fafafa; color: #09090b;
+            border: none; border-radius: 10px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(250, 250, 250, 0.15);
+        }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .footer {
+            text-align: center; margin-top: 24px;
+            font-size: 12px; color: #3f3f46;
+        }
+
+        @keyframes toast-in { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .toast {
+            position: fixed; bottom: 20px; right: 20px;
+            padding: 10px 16px; border-radius: 10px;
+            font-size: 13px; font-weight: 500; color: #fafafa;
+            z-index: 50; animation: toast-in 0.25s ease-out;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .toast-error { background: rgba(220, 38, 38, 0.85); }
+        .toast-success { background: rgba(22, 163, 74, 0.85); }
+        .toast-info { background: rgba(39, 39, 42, 0.85); border: 1px solid rgba(63, 63, 70, 0.6); }
+    </style>
+</head>
+<body>
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+
+    <div class="login-wrapper">
+        <div class="brand">
+            <h1>Grok2API</h1>
+            <p>管理员控制台</p>
+        </div>
+        <div class="card">
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">账户</label>
+                    <input type="text" id="username" name="username" required autocomplete="username"
+                        class="form-input" placeholder="请输入账户">
+                </div>
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password"
+                        class="form-input" placeholder="请输入密码">
+                </div>
+                <button type="submit" id="loginButton" class="btn-primary">登录</button>
+            </form>
+        </div>
+        <div class="footer">Grok2API v2.0.0</div>
+    </div>
+
+    <script>
+        const form = document.getElementById('loginForm');
+        const btn = document.getElementById('loginButton');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.textContent = '登录中...';
+
+            try {
+                const fd = new FormData(form);
+                const r = await fetch('/admin/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: fd.get('username'),
+                        password: fd.get('password')
+                    })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    localStorage.setItem('adminToken', d.token);
+                    location.href = '/admin';
+                } else {
+                    showToast(d.message || '登录失败', 'error');
+                }
+            } catch (e) {
+                showToast('网络错误，请稍后重试', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '登录';
+            }
+        });
+
+        function showToast(m, t = 'error') {
+            const d = document.createElement('div');
+            d.className = `toast toast-${t}`;
+            d.textContent = m;
+            document.body.appendChild(d);
+            setTimeout(() => {
+                d.style.opacity = '0';
+                d.style.transition = 'opacity .2s';
+                setTimeout(() => d.remove(), 200);
+            }, 2000);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const t = localStorage.getItem('adminToken');
+            if (t) {
+                fetch('/admin/api/tokens', {
+                    headers: { Authorization: `Bearer ${t}` }
+                }).then(r => {
+                    if (r.ok) location.href = '/admin';
+                });
+            }
+        });
+    </script>
+</body>
+</html>

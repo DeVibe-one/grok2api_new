@@ -1,0 +1,7 @@
+fastapi
+pydantic
+curl-cffi
+orjson
+aiofiles
+uvicorn
+uvloop; sys_platform != "win32"

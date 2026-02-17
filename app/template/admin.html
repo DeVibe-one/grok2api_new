@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理控制台 - Grok2API</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #09090b; color: #fafafa; min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      position: relative; overflow-x: hidden;
+    }
+
+    /* ===== 浮动背景光球 ===== */
+    .bg-orb {
+      position: fixed; border-radius: 50%;
+      filter: blur(100px); opacity: 0.08;
+      pointer-events: none; z-index: 0;
+    }
+    .bg-orb-1 {
+      width: 500px; height: 500px; background: #3b82f6;
+      top: -150px; left: -100px;
+      animation: orb-drift-1 30s ease-in-out infinite;
+    }
+    .bg-orb-2 {
+      width: 450px; height: 450px; background: #8b5cf6;
+      bottom: -100px; right: -100px;
+      animation: orb-drift-2 35s ease-in-out infinite;
+    }
+    .bg-orb-3 {
+      width: 300px; height: 300px; background: #6366f1;
+      top: 40%; left: 50%;
+      animation: orb-drift-3 25s ease-in-out infinite;
+    }
+    @keyframes orb-drift-1 {
+      0%, 100% { transform: translate(0, 0); }
+      25% { transform: translate(100px, 80px); }
+      50% { transform: translate(50px, 200px); }
+      75% { transform: translate(-50px, 120px); }
+    }
+    @keyframes orb-drift-2 {
+      0%, 100% { transform: translate(0, 0); }
+      25% { transform: translate(-80px, -60px); }
+      50% { transform: translate(-150px, -120px); }
+      75% { transform: translate(-60px, -40px); }
+    }
+    @keyframes orb-drift-3 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(-120px, 60px) scale(1.15); }
+      66% { transform: translate(80px, -80px) scale(0.85); }
+    }
+
+    /* ===== Layout ===== */
+    .header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(9, 9, 11, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      height: 56px; display: flex; align-items: center; padding: 0 24px;
+    }
+    .header-inner { max-width: 1200px; width: 100%; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo-ver { font-size: 11px; color: #52525b; margin-left: 8px; font-weight: 400; }
+    .btn-logout { font-size: 13px; color: #71717a; background: none; border: none; cursor: pointer; padding: 6px 10px; border-radius: 6px; transition: color 0.15s; display: flex; align-items: center; gap: 4px; }
+    .btn-logout:hover { color: #fafafa; }
+    .btn-logout svg { width: 14px; height: 14px; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; position: relative; z-index: 1; }
+
+    /* ===== Tabs ===== */
+    .tabs {
+      display: flex; gap: 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      margin-bottom: 24px; overflow-x: auto;
+    }
+    .tab-btn {
+      padding: 10px 16px; font-size: 13px; font-weight: 500; color: #71717a;
+      background: none; border: none; cursor: pointer; white-space: nowrap;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab-btn:hover { color: #a1a1aa; }
+    .tab-btn.tab-active { color: #fafafa; border-bottom-color: #fafafa; }
+
+    /* ===== Stat Cards ===== */
+    .stats-grid { display: grid; gap: 12px; margin-bottom: 24px; }
+    .stats-grid-6 { grid-template-columns: repeat(6, 1fr); }
+    .stats-grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .stats-grid-3 { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 768px) {
+      .stats-grid-6, .stats-grid-4, .stats-grid-3 { grid-template-columns: repeat(2, 1fr); }
+    }
+    .stat-card {
+      background: rgba(24, 24, 27, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px; padding: 16px 20px;
+      transition: border-color 0.2s, transform 0.2s;
+      animation: card-enter 0.4s ease-out both;
+    }
+    .stat-card:hover {
+      border-color: rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+    .stat-card:nth-child(1) { animation-delay: 0s; }
+    .stat-card:nth-child(2) { animation-delay: 0.05s; }
+    .stat-card:nth-child(3) { animation-delay: 0.1s; }
+    .stat-card:nth-child(4) { animation-delay: 0.15s; }
+    .stat-card:nth-child(5) { animation-delay: 0.2s; }
+    .stat-card:nth-child(6) { animation-delay: 0.25s; }
+    @keyframes card-enter {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .stat-label { font-size: 12px; color: #71717a; margin-bottom: 4px; }
+    .stat-value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat-value.c-green { color: #22c55e; }
+    .stat-value.c-red { color: #ef4444; }
+    .stat-value.c-yellow { color: #eab308; }
+    .stat-value.c-blue { color: #3b82f6; }
+    .stat-value.c-purple { color: #a855f7; }
+    .stat-value.c-orange { color: #f97316; }
+    .stat-value.c-muted { color: #71717a; }
+
+    /* ===== Panel / Card ===== */
+    .panel {
+      background: rgba(24, 24, 27, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px; overflow: hidden;
+      animation: card-enter 0.4s ease-out both;
+      animation-delay: 0.1s;
+    }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); gap: 12px; flex-wrap: wrap;
+    }
+    .panel-header-text { font-size: 13px; color: #71717a; }
+    .panel-header-text b { color: #fafafa; font-weight: 600; }
+    .panel-actions { display: flex; align-items: center; gap: 8px; }
+
+    /* ===== Buttons ===== */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 32px; padding: 0 12px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      border: none; transition: all 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .btn-white {
+      background: #fafafa; color: #09090b;
+    }
+    .btn-white:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(250, 250, 250, 0.1);
+    }
+    .btn-ghost { background: transparent; color: #a1a1aa; border: 1px solid rgba(63, 63, 70, 0.6); }
+    .btn-ghost:hover { color: #fafafa; border-color: #52525b; opacity: 1; }
+    .btn-danger { background: transparent; color: #a1a1aa; border: 1px solid rgba(63, 63, 70, 0.6); }
+    .btn-danger:hover { color: #ef4444; border-color: #ef4444; opacity: 1; }
+
+    .btn-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; border-radius: 8px; border: none;
+      background: transparent; color: #71717a; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-icon:hover { background: rgba(255, 255, 255, 0.06); color: #fafafa; }
+    .btn-icon svg { width: 15px; height: 15px; }
+    .btn-icon-danger:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+
+    /* ===== Input ===== */
+    .input {
+      height: 32px; padding: 0 10px;
+      background: rgba(9, 9, 11, 0.6);
+      border: 1px solid rgba(63, 63, 70, 0.6);
+      border-radius: 8px; color: #fafafa;
+      font-size: 13px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input::placeholder { color: #52525b; }
+    .input:focus {
+      border-color: rgba(99, 102, 241, 0.5);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+    }
+    .input-lg { height: 40px; padding: 0 12px; font-size: 14px; border-radius: 10px; }
+    textarea.input { height: auto; padding: 8px 10px; resize: none; font-family: inherit; }
+
+    /* ===== Table ===== */
+    .tbl { width: 100%; font-size: 13px; border-collapse: collapse; }
+    .tbl th {
+      text-align: left; padding: 8px 16px; font-size: 12px; font-weight: 500;
+      color: #52525b; border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .tbl td { padding: 10px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); color: #d4d4d8; }
+    .tbl tbody tr { transition: background 0.15s; }
+    .tbl tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+    .tbl .tc { text-align: center; }
+
+    /* ===== Badge ===== */
+    .badge {
+      display: inline-flex; align-items: center; padding: 2px 8px;
+      border-radius: 6px; font-size: 11px; font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .badge-green { background: rgba(34, 197, 94, 0.12); color: #4ade80; }
+    .badge-red { background: rgba(239, 68, 68, 0.12); color: #fca5a5; }
+    .badge-yellow { background: rgba(234, 179, 8, 0.12); color: #fde047; }
+    .badge-gray { background: rgba(255, 255, 255, 0.06); color: #71717a; }
+    .badge-blue { background: rgba(59, 130, 246, 0.12); color: #93c5fd; }
+
+    /* ===== Code ===== */
+    .mono { font-family: 'SF Mono', Menlo, Monaco, 'Courier New', monospace; font-size: 12px; }
+    .code-chip {
+      display: inline-block; padding: 2px 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 6px; font-family: 'SF Mono', Menlo, Monaco, monospace;
+      font-size: 12px; color: #d4d4d8; cursor: pointer; transition: background 0.15s;
+    }
+    .code-chip:hover { background: rgba(255, 255, 255, 0.1); }
+
+    /* ===== Modal ===== */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 50;
+      display: none; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+      background: rgba(24, 24, 27, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      width: 100%; max-width: 440px; margin: 0 16px; padding: 24px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+      animation: modal-enter 0.25s ease-out;
+    }
+    @keyframes modal-enter {
+      from { opacity: 0; transform: translateY(16px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+    .modal-field { margin-bottom: 16px; }
+    .modal-field label { display: block; font-size: 13px; font-weight: 500; color: #a1a1aa; margin-bottom: 6px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+
+    /* ===== Chart cards ===== */
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 768px) { .chart-grid { grid-template-columns: 1fr; } }
+    .chart-card {
+      background: rgba(24, 24, 27, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px; padding: 20px;
+      animation: card-enter 0.4s ease-out both;
+    }
+    .chart-card:nth-child(1) { animation-delay: 0.05s; }
+    .chart-card:nth-child(2) { animation-delay: 0.1s; }
+    .chart-card h3 { font-size: 13px; font-weight: 500; color: #71717a; margin-bottom: 16px; }
+
+    /* ===== Misc ===== */
+    .hidden { display: none !important; }
+    .empty-state { padding: 48px 0; text-align: center; color: #52525b; font-size: 13px; }
+    .flex-center { display: flex; align-items: center; justify-content: center; }
+    .gap-4 { gap: 4px; }
+
+    /* ===== Checkbox ===== */
+    input[type="checkbox"] { accent-color: #fafafa; width: 16px; height: 16px; }
+
+    /* ===== Scrollbar ===== */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.12); }
+
+    /* ===== Progress bar ===== */
+    .progress-bar {
+      padding: 8px 20px;
+      background: rgba(26, 26, 31, 0.6);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex; align-items: center; gap: 8px; font-size: 13px; color: #a1a1aa;
+    }
+
+    /* ===== Toast ===== */
+    @keyframes toast-in { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .toast {
+      position: fixed; bottom: 20px; right: 20px;
+      padding: 10px 16px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: #fafafa; z-index: 100;
+      animation: toast-in 0.25s ease-out;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .toast-success { background: rgba(22, 163, 74, 0.85); }
+    .toast-error { background: rgba(220, 38, 38, 0.85); }
+    .toast-info { background: rgba(39, 39, 42, 0.85); border: 1px solid rgba(63, 63, 70, 0.6); }
+
+    /* ===== Image grid ===== */
+    .img-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 16px 20px; }
+    @media (max-width: 1024px) { .img-grid { grid-template-columns: repeat(4, 1fr); } }
+    @media (max-width: 640px) { .img-grid { grid-template-columns: repeat(2, 1fr); } }
+    .img-item {
+      position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
+      background: rgba(255, 255, 255, 0.04); cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .img-item:hover { transform: scale(1.03); }
+    .img-item img { width: 100%; height: 100%; object-fit: cover; }
+    .img-item .img-hover {
+      position: absolute; inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      opacity: 0; transition: opacity 0.2s; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 6px; padding: 8px;
+    }
+    .img-item:hover .img-hover { opacity: 1; }
+    .img-hover span { font-size: 11px; color: #d4d4d8; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+    .img-hover button { padding: 3px 10px; background: rgba(220, 38, 38, 0.8); border: none; border-radius: 6px; color: #fff; font-size: 11px; cursor: pointer; }
+
+    /* ===== Select ===== */
+    select.input {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+      background-repeat: no-repeat; background-position: right 8px center;
+      padding-right: 28px;
+    }
+    select.input option { background: #18181b; color: #fafafa; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 1s linear infinite; }
+  </style>
+</head>
+<body>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+
+  <header class="header">
+    <div class="header-inner">
+      <div><span class="logo">Grok2API</span><span class="logo-ver">v2.0.0</span></div>
+      <button onclick="logout()" class="btn-logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        退出
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <nav class="tabs">
+      <button onclick="switchTab('tokens')" id="tabTokens" class="tab-btn tab-active">Token 管理</button>
+      <button onclick="switchTab('stats')" id="tabStats" class="tab-btn">请求统计</button>
+      <button onclick="switchTab('logs')" id="tabLogs" class="tab-btn">日志审计</button>
+      <button onclick="switchTab('keys')" id="tabKeys" class="tab-btn">Key 管理</button>
+      <button onclick="switchTab('images')" id="tabImages" class="tab-btn">缓存预览</button>
+      <button onclick="switchTab('config')" id="tabConfig" class="tab-btn">系统配置</button>
+      <button onclick="switchTab('conversations')" id="tabConversations" class="tab-btn">会话管理</button>
+    </nav>
+
+    <!-- ==================== Token 管理 ==================== -->
+    <div id="panelTokens">
+      <div class="stats-grid stats-grid-6">
+        <div class="stat-card"><div class="stat-label">Token 总数</div><div class="stat-value" id="statTotal">-</div></div>
+        <div class="stat-card"><div class="stat-label">已启用</div><div class="stat-value c-green" id="statEnabled">-</div></div>
+        <div class="stat-card"><div class="stat-label">失效</div><div class="stat-value c-muted" id="statExpired">-</div></div>
+        <div class="stat-card"><div class="stat-label">冷却中</div><div class="stat-value c-yellow" id="statCooldown">-</div></div>
+        <div class="stat-card"><div class="stat-label">Chat 剩余</div><div class="stat-value c-blue" id="statChatRemaining">-</div></div>
+        <div class="stat-card"><div class="stat-label">总请求</div><div class="stat-value c-purple" id="statRequests">-</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <input id="tokenFilter" type="text" placeholder="搜索 Token / 名称..." oninput="renderTokens()" class="input" style="width:220px;">
+          <div class="panel-actions">
+            <button onclick="refreshTokens()" class="btn-icon" title="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+            <button onclick="refreshAllTokens()" class="btn-icon" title="刷新全部额度"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg></button>
+            <button onclick="openAddTokenModal()" class="btn btn-white">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              新增
+            </button>
+          </div>
+        </div>
+        <div id="refreshProgress" class="hidden progress-bar">
+          <svg class="spin" style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          <span>刷新中: <span id="refreshProgressText">0/0</span></span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tbl">
+            <thead><tr>
+              <th style="padding-left:20px;">Token</th><th class="tc" style="width:64px;">状态</th>
+              <th class="tc" style="width:64px;">类型</th>
+              <th class="tc" style="width:64px;">冷却</th><th class="tc" style="width:64px;">额度</th>
+              <th class="tc" style="width:80px;">请求/失败</th><th style="width:160px;">最近使用</th><th class="tc" style="width:120px;">操作</th>
+            </tr></thead>
+            <tbody id="tokenTableBody"></tbody>
+          </table>
+        </div>
+        <div id="tokenEmptyState" class="hidden empty-state">暂无数据</div>
+      </div>
+    </div>
+
+    <!-- ==================== 请求统计 ==================== -->
+    <div id="panelStats" class="hidden">
+      <div class="stats-grid stats-grid-4">
+        <div class="stat-card"><div class="stat-label">今日请求</div><div class="stat-value" id="statTodayTotal">-</div></div>
+        <div class="stat-card"><div class="stat-label">今日成功</div><div class="stat-value c-green" id="statTodaySuccess">-</div></div>
+        <div class="stat-card"><div class="stat-label">今日失败</div><div class="stat-value c-red" id="statTodayFailed">-</div></div>
+        <div class="stat-card"><div class="stat-label">成功率</div><div class="stat-value c-blue" id="statTodayRate">-</div></div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card"><h3>24小时请求趋势</h3><canvas id="hourlyChart" height="200"></canvas></div>
+        <div class="chart-card"><h3>7天请求统计</h3><canvas id="dailyChart" height="200"></canvas></div>
+      </div>
+      <div class="panel" style="padding:20px;">
+        <div style="font-size:13px;color:#71717a;margin-bottom:12px;">模型分布</div>
+        <div id="modelDistribution" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+    </div>
+
+    <!-- ==================== 日志审计 ==================== -->
+    <div id="panelLogs" class="hidden">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-header-text">共 <b id="logTotal">0</b> 条日志</span>
+          <div class="panel-actions">
+            <button onclick="loadLogs()" class="btn-icon" title="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+            <button onclick="clearLogs()" class="btn btn-danger">清空日志</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tbl">
+            <thead><tr><th style="padding-left:20px;width:160px;">时间</th><th style="width:140px;">模型</th><th>Token</th><th>API Key</th><th class="tc" style="width:64px;">状态</th><th class="tc" style="width:64px;">耗时</th><th>错误</th></tr></thead>
+            <tbody id="logTableBody"></tbody>
+          </table>
+        </div>
+        <div id="logEmptyState" class="hidden empty-state">暂无日志</div>
+      </div>
+    </div>
+
+    <!-- ==================== Key 管理 ==================== -->
+    <div id="panelKeys" class="hidden">
+      <div class="stats-grid stats-grid-4">
+        <div class="stat-card"><div class="stat-label">Key 总数</div><div class="stat-value" id="keyStatTotal">-</div></div>
+        <div class="stat-card"><div class="stat-label">已启用</div><div class="stat-value c-green" id="keyStatEnabled">-</div></div>
+        <div class="stat-card"><div class="stat-label">已禁用</div><div class="stat-value c-muted" id="keyStatDisabled">-</div></div>
+        <div class="stat-card"><div class="stat-label">总调用</div><div class="stat-value c-blue" id="keyStatRequests">-</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-header-text">API Key 列表</span>
+          <div class="panel-actions">
+            <button onclick="loadKeys()" class="btn-icon" title="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+            <button onclick="openBatchCreateKeyModal()" class="btn btn-ghost">批量创建</button>
+            <button onclick="createKey()" class="btn btn-white"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tbl">
+            <thead><tr><th style="padding-left:20px;">API Key</th><th style="width:120px;">备注</th><th class="tc" style="width:64px;">状态</th><th class="tc" style="width:80px;">调用次数</th><th style="width:160px;">最后使用</th><th class="tc" style="width:100px;">操作</th></tr></thead>
+            <tbody id="keyTableBody"></tbody>
+          </table>
+        </div>
+        <div id="keyEmptyState" class="hidden empty-state">暂无 API Key</div>
+      </div>
+    </div>
+
+    <!-- ==================== 缓存预览 ==================== -->
+    <div id="panelImages" class="hidden">
+      <div class="stats-grid stats-grid-3">
+        <div class="stat-card"><div class="stat-label">缓存文件数</div><div class="stat-value" id="imgStatCount">-</div></div>
+        <div class="stat-card"><div class="stat-label">总大小</div><div class="stat-value c-blue" id="imgStatSize">-</div></div>
+        <div class="stat-card"><div class="stat-label">缓存目录</div><div class="mono" style="color:#71717a;margin-top:4px;overflow:hidden;text-overflow:ellipsis;" id="imgStatDir">-</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-header-text">缓存图片列表</span>
+          <div class="panel-actions">
+            <button onclick="loadImages()" class="btn-icon" title="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+            <button onclick="clearAllImages()" class="btn btn-danger">清空全部</button>
+          </div>
+        </div>
+        <div id="imageGrid" class="img-grid"><span class="empty-state" style="grid-column:1/-1;">加载中...</span></div>
+      </div>
+    </div>
+
+    <!-- ==================== 系统配置 ==================== -->
+    <div id="panelConfig" class="hidden">
+      <div class="panel" style="padding:24px;">
+        <div style="font-size:16px;font-weight:600;margin-bottom:24px;">系统配置</div>
+        <div id="configForm"></div>
+        <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:24px;padding-top:24px;display:flex;justify-content:flex-end;">
+          <button onclick="saveConfig()" class="btn btn-white">保存配置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 会话管理 ==================== -->
+    <div id="panelConversations" class="hidden">
+      <div class="stats-grid stats-grid-4">
+        <div class="stat-card"><div class="stat-label">活跃会话</div><div class="stat-value" id="convStatTotal">-</div></div>
+        <div class="stat-card"><div class="stat-label">总消息数</div><div class="stat-value c-blue" id="convStatMessages">-</div></div>
+        <div class="stat-card"><div class="stat-label">缓存时间</div><div class="stat-value c-purple" id="convStatTTL">-</div></div>
+        <div class="stat-card"><div class="stat-label">已自动清理</div><div class="stat-value c-orange" id="convStatCleaned">-</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="panel-header-text">会话列表</span>
+            <span id="autoCleanupBadge" class="badge badge-green">自动清理已启用</span>
+          </div>
+          <div class="panel-actions">
+            <button onclick="loadConversations()" class="btn-icon" title="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+            <button onclick="clearConversations()" class="btn btn-danger">清空全部</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tbl">
+            <thead><tr><th style="padding-left:20px;">会话 ID</th><th>Token</th><th class="tc" style="width:64px;">消息数</th><th style="width:140px;">最后活跃</th><th class="tc" style="width:100px;">剩余存活</th><th class="tc" style="width:64px;">操作</th></tr></thead>
+            <tbody id="convTableBody"></tbody>
+          </table>
+        </div>
+        <div id="convEmptyState" class="hidden empty-state">暂无会话</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== Modals ==================== -->
+  <div id="addTokenModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-title">添加 Token</div>
+      <div class="modal-field"><label>SSO</label><textarea id="addTokenInput" rows="3" placeholder="请输入 Token，每行一个" class="input" style="width:100%;"></textarea></div>
+      <div class="modal-field"><label>备注名称</label><input id="addTokenName" type="text" placeholder="可选" class="input input-lg" style="width:100%;"></div>
+      <div class="modal-field" style="display:flex;align-items:center;gap:8px;"><input id="addTokenEnabled" type="checkbox" checked><label style="margin:0;font-size:13px;color:#d4d4d8;">启用</label></div>
+      <div class="modal-actions">
+        <button onclick="closeModal('addTokenModal')" class="btn btn-ghost">取消</button>
+        <button onclick="addToken()" class="btn btn-white">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="editTokenModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-title">编辑 Token</div>
+      <div class="modal-field"><label>Token</label><input id="editTokenValue" type="text" readonly class="input input-lg mono" style="width:100%;opacity:0.5;"></div>
+      <div class="modal-field"><label>备注名称</label><input id="editTokenName" type="text" class="input input-lg" style="width:100%;"></div>
+      <div class="modal-field" style="display:flex;align-items:center;gap:8px;"><input id="editTokenEnabled" type="checkbox"><label style="margin:0;font-size:13px;color:#d4d4d8;">启用</label></div>
+      <div class="modal-actions">
+        <button onclick="closeModal('editTokenModal')" class="btn btn-ghost">取消</button>
+        <button onclick="saveToken()" class="btn btn-white">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="batchKeyModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-title">批量创建 API Key</div>
+      <div class="modal-field"><label>数量</label><input id="batchKeyCount" type="number" value="5" min="1" max="100" class="input input-lg" style="width:100%;"></div>
+      <div class="modal-field"><label>名称前缀</label><input id="batchKeyPrefix" type="text" placeholder="如: user-" class="input input-lg" style="width:100%;"></div>
+      <div class="modal-actions">
+        <button onclick="closeModal('batchKeyModal')" class="btn btn-ghost">取消</button>
+        <button onclick="batchCreateKeys()" class="btn btn-white">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="editKeyModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-title">编辑 API Key</div>
+      <div class="modal-field"><label>API Key</label><input id="editKeyValue" type="text" readonly class="input input-lg mono" style="width:100%;opacity:0.5;"></div>
+      <div class="modal-field"><label>备注</label><input id="editKeyName" type="text" class="input input-lg" style="width:100%;"></div>
+      <div class="modal-field" style="display:flex;align-items:center;gap:8px;"><input id="editKeyEnabled" type="checkbox"><label style="margin:0;font-size:13px;color:#d4d4d8;">启用</label></div>
+      <div class="modal-actions">
+        <button onclick="closeModal('editKeyModal')" class="btn btn-ghost">取消</button>
+        <button onclick="saveKey()" class="btn btn-white">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==================== 全局变量 ====================
+    let TOKENS = [], KEYS = [], CONVERSATIONS = [], LOGS = [];
+    let CONFIG_SCHEMA = {};
+    let hourlyChart = null, dailyChart = null;
+    let refreshInterval = null;
+
+    // ==================== 工具函数 ====================
+    function getAuthHeaders() {
+      const token = localStorage.getItem('adminToken');
+      return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, { ...options, headers: { ...getAuthHeaders(), ...(options.headers || {}) } });
+      if (res.status === 401) { localStorage.removeItem('adminToken'); location.href = '/admin/login'; return; }
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
+      if (!res.ok) throw new Error((data?.detail || data?.error || data?.message) || 'HTTP ' + res.status);
+      return data;
+    }
+
+    function fmtTime(ts) {
+      if (!ts || ts <= 0) return '-';
+      try { return new Date(ts * 1000).toLocaleString('zh-CN'); } catch { return String(ts); }
+    }
+
+    function fmtDuration(ms) {
+      if (ms < 1000) return ms + 'ms';
+      return (ms / 1000).toFixed(1) + 's';
+    }
+
+    function tokenPreview(t) {
+      if (!t) return '';
+      const s = String(t);
+      return s.length <= 18 ? s : s.slice(0, 10) + '...' + s.slice(-6);
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function showToast(m, t = 'info') {
+      const d = document.createElement('div');
+      d.className = `toast toast-${t}`;
+      d.textContent = m;
+      document.body.appendChild(d);
+      setTimeout(() => { d.style.opacity = '0'; d.style.transition = 'opacity .2s'; setTimeout(() => d.remove(), 200); }, 2500);
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => showToast('已复制', 'success')).catch(() => {
+        const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+        showToast('已复制', 'success');
+      });
+    }
+
+    // ==================== Tab 切换 ====================
+    function switchTab(tab) {
+      document.querySelectorAll('[id^="panel"]').forEach(p => p.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('tab-active'));
+      document.getElementById('panel' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.remove('hidden');
+      document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('tab-active');
+
+      if (tab === 'stats') loadStats();
+      else if (tab === 'logs') loadLogs();
+      else if (tab === 'keys') loadKeys();
+      else if (tab === 'images') loadImages();
+      else if (tab === 'config') loadConfig();
+      else if (tab === 'conversations') loadConversations();
+    }
+
+    // ==================== Token 管理 ====================
+    async function refreshTokens() {
+      try {
+        const data = await api('/admin/api/tokens');
+        TOKENS = data.tokens || [];
+        const st = data.stats || {};
+        document.getElementById('statTotal').textContent = st.total_tokens ?? '-';
+        document.getElementById('statEnabled').textContent = st.enabled_tokens ?? '-';
+        document.getElementById('statExpired').textContent = st.expired_tokens ?? '-';
+        document.getElementById('statCooldown').textContent = st.in_cooldown ?? '-';
+        document.getElementById('statChatRemaining').textContent = st.chat_remaining ?? '-';
+        document.getElementById('statRequests').textContent = st.total_requests ?? '-';
+        renderTokens();
+      } catch (e) { showToast('加载失败: ' + e.message, 'error'); }
+    }
+
+    function renderTokens() {
+      const tbody = document.getElementById('tokenTableBody');
+      const empty = document.getElementById('tokenEmptyState');
+      const q = (document.getElementById('tokenFilter').value || '').toLowerCase();
+      const items = TOKENS.filter(t => !q || ((t.name || '') + ' ' + (t.token || '')).toLowerCase().includes(q));
+
+      if (!items.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+
+      tbody.innerHTML = items.map(t => {
+        const statusBadge = t.enabled ? '<span class="badge badge-green">ON</span>' : '<span class="badge badge-gray">OFF</span>';
+        const cooldownBadge = t.in_cooldown
+          ? `<span class="badge badge-yellow" title="${esc(t.cooldown_reason)}">${Math.ceil(t.cooldown_remaining/60)}分</span>`
+          : '<span class="badge badge-gray">-</span>';
+        const quotaBadge = t.remaining_queries >= 0
+          ? `<span class="badge ${t.remaining_queries > 0 ? 'badge-blue' : 'badge-red'}">${t.remaining_queries}</span>`
+          : '<span class="badge badge-gray">未知</span>';
+        const typeBadge = t.account_type === 'super' ? '<span class="badge badge-blue">Super</span>'
+          : t.account_type === 'free' ? '<span class="badge badge-gray">Free</span>'
+          : '<span class="badge badge-gray">未知</span>';
+        return `<tr>
+          <td style="padding-left:20px;"><span class="code-chip" onclick="copyText('${esc(t.token)}')" title="点击复制">${esc(tokenPreview(t.token))}</span></td>
+          <td class="tc">${statusBadge}</td>
+          <td class="tc">${typeBadge}</td>
+          <td class="tc">${cooldownBadge}</td>
+          <td class="tc">${quotaBadge}</td>
+          <td class="tc" style="color:#71717a;">${t.request_count ?? 0}/${t.failure_count ?? 0}</td>
+          <td style="color:#71717a;">${fmtTime(t.last_used)}</td>
+          <td class="tc">
+            <div class="flex-center gap-4">
+              <button onclick="testToken('${esc(t.token)}')" class="btn-icon" title="检测额度"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>
+              <button onclick="editToken('${esc(t.token)}')" class="btn-icon" title="编辑"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              ${t.in_cooldown ? `<button onclick="clearCooldown('${esc(t.token)}')" class="btn-icon" title="清除冷却"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>` : ''}
+              <button onclick="deleteToken('${esc(t.token)}')" class="btn-icon btn-icon-danger" title="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function testToken(token) {
+      showToast('检测中...', 'info');
+      try {
+        const result = await api('/admin/api/tokens/test', { method: 'POST', body: JSON.stringify({ token }) });
+        if (result.success) {
+          const remaining = result.remaining_queries;
+          const typeLabel = result.account_type === 'super' ? 'Super会员' : result.account_type === 'free' ? '普通账号' : '未知';
+          showToast(remaining >= 0 ? `[${typeLabel}] 额度: ${remaining}` : `[${typeLabel}] 额度未知`, 'success');
+        } else {
+          showToast('检测失败: ' + (result.error || '未知错误'), 'error');
+        }
+        refreshTokens();
+      } catch (e) { showToast('检测失败: ' + e.message, 'error'); }
+    }
+
+    function openAddTokenModal() { document.getElementById('addTokenInput').value = ''; document.getElementById('addTokenName').value = ''; document.getElementById('addTokenEnabled').checked = true; openModal('addTokenModal'); }
+
+    async function addToken() {
+      const input = document.getElementById('addTokenInput').value.trim();
+      const name = document.getElementById('addTokenName').value.trim();
+      const enabled = document.getElementById('addTokenEnabled').checked;
+      if (!input) { showToast('请输入 Token', 'error'); return; }
+      const tokens = input.split('\n').map(t => t.trim()).filter(t => t);
+      try {
+        if (tokens.length === 1) {
+          await api('/admin/api/tokens', { method: 'POST', body: JSON.stringify({ token: tokens[0], name, enabled }) });
+          showToast('添加成功', 'success');
+        } else {
+          const res = await api('/admin/api/tokens/batch', { method: 'POST', body: JSON.stringify({ tokens, name, enabled }) });
+          const parts = [`新增 ${res.added} 个`];
+          if (res.duplicates > 0) parts.push(`重复 ${res.duplicates} 个`);
+          if (res.empty > 0) parts.push(`空行 ${res.empty} 个`);
+          showToast(parts.join('，'), res.added > 0 ? 'success' : 'error');
+        }
+        closeModal('addTokenModal'); refreshTokens();
+      } catch (e) { showToast('添加失败: ' + e.message, 'error'); }
+    }
+
+    function editToken(token) {
+      const t = TOKENS.find(x => x.token === token);
+      if (!t) return;
+      document.getElementById('editTokenValue').value = t.token;
+      document.getElementById('editTokenName').value = t.name || '';
+      document.getElementById('editTokenEnabled').checked = t.enabled;
+      openModal('editTokenModal');
+    }
+
+    async function saveToken() {
+      const token = document.getElementById('editTokenValue').value;
+      const name = document.getElementById('editTokenName').value;
+      const enabled = document.getElementById('editTokenEnabled').checked;
+      try {
+        await api('/admin/api/tokens', { method: 'PATCH', body: JSON.stringify({ token, name, enabled }) });
+        showToast('保存成功', 'success'); closeModal('editTokenModal'); refreshTokens();
+      } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+    }
+
+    async function deleteToken(token) {
+      if (!confirm('确定删除此 Token？')) return;
+      try { await api('/admin/api/tokens', { method: 'DELETE', body: JSON.stringify({ token }) }); showToast('删除成功', 'success'); refreshTokens(); } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+    }
+
+    async function clearCooldown(token) {
+      try { await api('/admin/api/tokens/clear-cooldown', { method: 'POST', body: JSON.stringify({ token }) }); showToast('冷却已清除', 'success'); refreshTokens(); } catch (e) { showToast('操作失败: ' + e.message, 'error'); }
+    }
+
+    async function refreshAllTokens() {
+      try {
+        const res = await api('/admin/api/tokens/refresh-all', { method: 'POST' });
+        if (res.success) { showToast('刷新任务已启动', 'success'); document.getElementById('refreshProgress').classList.remove('hidden'); startRefreshProgressPolling(); }
+        else { showToast(res.error || '刷新失败', 'error'); }
+      } catch (e) { showToast('操作失败: ' + e.message, 'error'); }
+    }
+
+    function startRefreshProgressPolling() {
+      if (refreshInterval) clearInterval(refreshInterval);
+      refreshInterval = setInterval(async () => {
+        try {
+          const progress = await api('/admin/api/tokens/refresh-progress');
+          document.getElementById('refreshProgressText').textContent = `${progress.completed}/${progress.total}`;
+          if (!progress.in_progress) { clearInterval(refreshInterval); refreshInterval = null; document.getElementById('refreshProgress').classList.add('hidden'); showToast('刷新完成', 'success'); refreshTokens(); }
+        } catch { clearInterval(refreshInterval); refreshInterval = null; }
+      }, 1000);
+    }
+
+    // ==================== 请求统计 ====================
+    Chart.defaults.color = '#52525b';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.04)';
+
+    async function loadStats() {
+      try {
+        const [summary, hourly, daily] = await Promise.all([api('/admin/api/stats'), api('/admin/api/stats/hourly?hours=24'), api('/admin/api/stats/daily?days=7')]);
+        const today = summary.summary?.today || {};
+        document.getElementById('statTodayTotal').textContent = today.total ?? '-';
+        document.getElementById('statTodaySuccess').textContent = today.success ?? '-';
+        document.getElementById('statTodayFailed').textContent = today.failed ?? '-';
+        document.getElementById('statTodayRate').textContent = (today.success_rate ?? '-') + '%';
+
+        const dist = summary.summary?.model_distribution || {};
+        document.getElementById('modelDistribution').innerHTML = Object.entries(dist).map(([m, c]) => `<span class="badge badge-blue">${esc(m)}: ${c}</span>`).join('') || '<span style="color:#52525b;">暂无数据</span>';
+
+        const hd = hourly.data || [];
+        if (hourlyChart) hourlyChart.destroy();
+        hourlyChart = new Chart(document.getElementById('hourlyChart'), {
+          type: 'bar', data: { labels: hd.map(d => d.hour?.split(' ')[1] + ':00' || ''), datasets: [
+            { label: '成功', data: hd.map(d => d.success || 0), backgroundColor: 'rgba(34,197,94,0.6)', borderRadius: 4 },
+            { label: '失败', data: hd.map(d => d.failed || 0), backgroundColor: 'rgba(239,68,68,0.6)', borderRadius: 4 }
+          ]}, options: { responsive: true, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } } }, plugins: { legend: { labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 6 } } } }
+        });
+
+        const dd = daily.data || [];
+        if (dailyChart) dailyChart.destroy();
+        dailyChart = new Chart(document.getElementById('dailyChart'), {
+          type: 'bar', data: { labels: dd.map(d => d.date?.slice(5) || ''), datasets: [
+            { label: '成功', data: dd.map(d => d.success || 0), backgroundColor: 'rgba(34,197,94,0.6)', borderRadius: 4 },
+            { label: '失败', data: dd.map(d => d.failed || 0), backgroundColor: 'rgba(239,68,68,0.6)', borderRadius: 4 }
+          ]}, options: { responsive: true, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } } }, plugins: { legend: { labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 6 } } } }
+        });
+      } catch (e) { showToast('加载统计失败: ' + e.message, 'error'); }
+    }
+
+    // ==================== 日志审计 ====================
+    async function loadLogs() {
+      try { const data = await api('/admin/api/logs?limit=200'); LOGS = data.logs || []; document.getElementById('logTotal').textContent = data.total || 0; renderLogs(); } catch (e) { showToast('加载日志失败: ' + e.message, 'error'); }
+    }
+
+    function renderLogs() {
+      const tbody = document.getElementById('logTableBody'), empty = document.getElementById('logEmptyState');
+      if (!LOGS.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      tbody.innerHTML = LOGS.map(l => {
+        const st = l.status === 'success' ? '<span class="badge badge-green">成功</span>' : '<span class="badge badge-red">失败</span>';
+        return `<tr><td style="padding-left:20px;color:#71717a;">${fmtTime(l.timestamp)}</td><td>${esc(l.model)}</td><td><span class="mono" style="color:#71717a;">${esc(l.token_preview)}</span></td><td><span class="mono" style="color:#52525b;">${esc(l.api_key_preview) || '-'}</span></td><td class="tc">${st}</td><td class="tc" style="color:#71717a;">${fmtDuration(l.duration_ms)}</td><td style="color:#ef4444;">${esc(l.error) || '<span style="color:#3f3f46;">-</span>'}</td></tr>`;
+      }).join('');
+    }
+
+    async function clearLogs() {
+      if (!confirm('确定清空所有日志？')) return;
+      try { await api('/admin/api/logs/clear', { method: 'POST' }); showToast('日志已清空', 'success'); loadLogs(); } catch (e) { showToast('清空失败: ' + e.message, 'error'); }
+    }
+
+    // ==================== Key 管理 ====================
+    async function loadKeys() {
+      try {
+        const data = await api('/admin/api/keys'); KEYS = data.keys || []; const st = data.stats || {};
+        document.getElementById('keyStatTotal').textContent = st.total_keys ?? '-';
+        document.getElementById('keyStatEnabled').textContent = st.enabled_keys ?? '-';
+        document.getElementById('keyStatDisabled').textContent = st.disabled_keys ?? '-';
+        document.getElementById('keyStatRequests').textContent = st.total_requests ?? '-';
+        renderKeys();
+      } catch (e) { showToast('加载失败: ' + e.message, 'error'); }
+    }
+
+    function renderKeys() {
+      const tbody = document.getElementById('keyTableBody'), empty = document.getElementById('keyEmptyState');
+      if (!KEYS.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      tbody.innerHTML = KEYS.map(k => {
+        const st = k.enabled ? '<span class="badge badge-green">启用</span>' : '<span class="badge badge-gray">禁用</span>';
+        return `<tr><td style="padding-left:20px;"><span class="code-chip" onclick="copyText('${esc(k.key)}')" title="点击复制">${esc(k.key.slice(0, 20))}...</span></td><td style="color:${k.name ? '#d4d4d8' : '#3f3f46'}">${esc(k.name) || '-'}</td><td class="tc">${st}</td><td class="tc" style="color:#71717a;">${k.request_count ?? 0}</td><td style="color:#71717a;">${fmtTime(k.last_used)}</td><td class="tc"><div class="flex-center gap-4"><button onclick="editKey('${esc(k.key)}')" class="btn-icon" title="编辑"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button onclick="deleteKey('${esc(k.key)}')" class="btn-icon btn-icon-danger" title="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td></tr>`;
+      }).join('');
+    }
+
+    async function createKey() {
+      try { const res = await api('/admin/api/keys', { method: 'POST', body: JSON.stringify({ name: '', count: 1 }) }); if (res.ok) { showToast('创建成功', 'success'); if (res.key) copyText(res.key.key); loadKeys(); } } catch (e) { showToast('创建失败: ' + e.message, 'error'); }
+    }
+
+    function openBatchCreateKeyModal() { document.getElementById('batchKeyCount').value = 5; document.getElementById('batchKeyPrefix').value = ''; openModal('batchKeyModal'); }
+
+    async function batchCreateKeys() {
+      const count = parseInt(document.getElementById('batchKeyCount').value) || 1;
+      const prefix = document.getElementById('batchKeyPrefix').value;
+      try { await api('/admin/api/keys', { method: 'POST', body: JSON.stringify({ name: prefix, count }) }); showToast(`成功创建 ${count} 个 Key`, 'success'); closeModal('batchKeyModal'); loadKeys(); } catch (e) { showToast('创建失败: ' + e.message, 'error'); }
+    }
+
+    function editKey(key) {
+      const k = KEYS.find(x => x.key === key); if (!k) return;
+      document.getElementById('editKeyValue').value = k.key;
+      document.getElementById('editKeyName').value = k.name || '';
+      document.getElementById('editKeyEnabled').checked = k.enabled;
+      openModal('editKeyModal');
+    }
+
+    async function saveKey() {
+      const key = document.getElementById('editKeyValue').value, name = document.getElementById('editKeyName').value, enabled = document.getElementById('editKeyEnabled').checked;
+      try { await api('/admin/api/keys', { method: 'PATCH', body: JSON.stringify({ key, name, enabled }) }); showToast('保存成功', 'success'); closeModal('editKeyModal'); loadKeys(); } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+    }
+
+    async function deleteKey(key) {
+      if (!confirm('确定删除此 Key？')) return;
+      try { await api('/admin/api/keys', { method: 'DELETE', body: JSON.stringify({ keys: [key] }) }); showToast('删除成功', 'success'); loadKeys(); } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+    }
+
+    // ==================== 系统配置 ====================
+    let CONFIG_GROUPS = {};
+
+    async function loadConfig() {
+      try { const data = await api('/admin/api/config'); CONFIG_SCHEMA = data.schema || {}; CONFIG_GROUPS = data.groups || {}; renderConfigForm(); } catch (e) { showToast('加载配置失败: ' + e.message, 'error'); }
+    }
+
+    function renderConfigForm() {
+      const form = document.getElementById('configForm');
+      const grouped = {};
+      for (const [key, info] of Object.entries(CONFIG_SCHEMA)) { const g = info.group || 'other'; if (!grouped[g]) grouped[g] = []; grouped[g].push({ key, ...info }); }
+      const sorted = Object.entries(grouped).sort((a, b) => (CONFIG_GROUPS[a[0]]?.order ?? 99) - (CONFIG_GROUPS[b[0]]?.order ?? 99));
+
+      form.innerHTML = sorted.map(([gk, items]) => {
+        const gl = CONFIG_GROUPS[gk]?.label || gk;
+        const ih = items.map(info => {
+          let inp = '';
+          if (info.type === 'bool') inp = `<input type="checkbox" id="cfg_${info.key}" ${info.value ? 'checked' : ''}>`;
+          else if (info.type === 'select') inp = `<select id="cfg_${info.key}" class="input" style="width:100%;max-width:280px;">${(info.options || []).map(o => `<option value="${o}" ${info.value === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+          else if (info.type === 'int') inp = `<input type="number" id="cfg_${info.key}" value="${info.value ?? ''}" class="input" style="width:100%;max-width:280px;">`;
+          else if (info.type === 'password') { const hv = info.value && info.value !== ''; inp = `<input type="password" id="cfg_${info.key}" value="" placeholder="${hv ? '已设置（留空则不修改）' : '未设置'}" class="input" style="width:100%;max-width:280px;">`; }
+          else inp = `<input type="text" id="cfg_${info.key}" value="${esc(info.value ?? '')}" class="input" style="width:100%;max-width:280px;">`;
+          return `<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;"><div style="width:180px;flex-shrink:0;"><div style="font-size:13px;font-weight:500;color:#d4d4d8;">${esc(info.label)}</div><div style="font-size:12px;color:#52525b;margin-top:2px;">${esc(info.desc)}</div></div><div style="flex:1;min-width:200px;">${inp}</div></div>`;
+        }).join('');
+        return `<div style="margin-bottom:24px;"><div style="font-size:12px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.05em;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:16px;">${esc(gl)}</div><div style="display:flex;flex-direction:column;gap:16px;">${ih}</div></div>`;
+      }).join('');
+    }
+
+    async function saveConfig() {
+      const config = {};
+      for (const key of Object.keys(CONFIG_SCHEMA)) {
+        const el = document.getElementById('cfg_' + key); if (!el) continue;
+        const info = CONFIG_SCHEMA[key];
+        if (info.type === 'bool') config[key] = el.checked;
+        else if (info.type === 'int') config[key] = parseInt(el.value) || 0;
+        else if (info.type === 'password') { if (el.value && el.value.trim()) config[key] = el.value; }
+        else config[key] = el.value;
+      }
+      try { await api('/admin/api/config', { method: 'POST', body: JSON.stringify({ config }) }); showToast('配置已保存', 'success'); loadConfig(); } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+    }
+
+    // ==================== 缓存预览 ====================
+    let CACHED_IMAGES = [];
+
+    async function loadImages() {
+      try {
+        const data = await api('/admin/api/images'); CACHED_IMAGES = data.images || []; const st = data.stats || {};
+        document.getElementById('imgStatCount').textContent = st.count ?? '-';
+        document.getElementById('imgStatSize').textContent = (st.total_size_mb ?? 0) + ' MB';
+        document.getElementById('imgStatDir').textContent = st.cache_dir ?? '-';
+        renderImages();
+      } catch (e) { showToast('加载失败: ' + e.message, 'error'); }
+    }
+
+    function renderImages() {
+      const grid = document.getElementById('imageGrid');
+      if (!CACHED_IMAGES.length) { grid.innerHTML = '<span class="empty-state" style="grid-column:1/-1;">暂无缓存图片</span>'; return; }
+      grid.innerHTML = CACHED_IMAGES.map(img => `
+        <div class="img-item" onclick="showImagePreview('${esc(img.url)}', '${esc(img.name)}')">
+          <img src="${esc(img.url)}" alt="${esc(img.name)}" loading="lazy" onerror="this.style.display='none'">
+          <div class="img-hover"><span>${esc(img.name)}</span><span style="color:#71717a;">${img.size_mb} MB</span><button onclick="event.stopPropagation(); deleteImage('${esc(img.name)}')">删除</button></div>
+        </div>`).join('');
+    }
+
+    function showImagePreview(url, name) {
+      const modal = document.createElement('div');
+      modal.id = 'imagePreviewModal';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      modal.innerHTML = `<div style="position:relative;max-width:90vw;max-height:90vh;"><img src="${url}" alt="${name}" style="max-width:100%;max-height:85vh;object-fit:contain;border-radius:12px;"><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);text-align:center;padding:8px;border-radius:0 0 12px 12px;font-size:13px;color:#d4d4d8;">${name}</div><button onclick="document.getElementById('imagePreviewModal').remove()" style="position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;background:rgba(39,39,42,0.8);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.1);color:#fafafa;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;">x</button></div>`;
+      document.body.appendChild(modal);
+      document.addEventListener('keydown', function h(e) { if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', h); } });
+    }
+
+    async function deleteImage(filename) {
+      if (!confirm('确定删除此图片？')) return;
+      try { await api('/admin/api/images?filename=' + encodeURIComponent(filename), { method: 'DELETE' }); showToast('已删除'); loadImages(); } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+    }
+
+    async function clearAllImages() {
+      if (!confirm('确定清空所有缓存图片？')) return;
+      try { const res = await api('/admin/api/images/clear', { method: 'POST' }); showToast('已清空 ' + (res.deleted || 0) + ' 个文件'); loadImages(); } catch (e) { showToast('清空失败: ' + e.message, 'error'); }
+    }
+
+    // ==================== 会话管理 ====================
+    async function loadConversations() {
+      try {
+        const data = await api('/admin/api/conversations'); CONVERSATIONS = data.conversations || []; const st = data.stats || {};
+        document.getElementById('convStatTotal').textContent = st.total_conversations ?? '-';
+        document.getElementById('convStatMessages').textContent = st.total_messages ?? '-';
+        document.getElementById('convStatTTL').textContent = formatDuration(st.ttl_seconds);
+        document.getElementById('convStatCleaned').textContent = st.total_cleaned ?? 0;
+        const badge = document.getElementById('autoCleanupBadge');
+        if (st.auto_cleanup_enabled) { badge.textContent = '自动清理已启用'; badge.className = 'badge badge-green'; }
+        else { badge.textContent = '自动清理未启用'; badge.className = 'badge badge-gray'; }
+        renderConversations();
+      } catch (e) { showToast('加载失败: ' + e.message, 'error'); }
+    }
+
+    function formatDuration(seconds) {
+      if (!seconds || seconds < 0) return '-';
+      if (seconds < 60) return seconds + '秒';
+      if (seconds < 3600) return Math.floor(seconds / 60) + '分钟';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + '小时';
+      return Math.floor(seconds / 86400) + '天';
+    }
+
+    function renderConversations() {
+      const tbody = document.getElementById('convTableBody'), empty = document.getElementById('convEmptyState');
+      if (!CONVERSATIONS.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      tbody.innerHTML = CONVERSATIONS.map(c => {
+        const ttlColor = c.ttl_remaining < 3600 ? '#ef4444' : (c.ttl_remaining < 86400 ? '#eab308' : '#22c55e');
+        return `<tr><td style="padding-left:20px;"><span class="mono" style="color:#71717a;">${esc(c.conversation_id?.slice(0, 20))}...</span></td><td><span class="mono" style="color:#52525b;">${esc(c.token)}</span></td><td class="tc">${c.message_count ?? 0}</td><td style="color:#71717a;">${fmtTime(c.last_active)}</td><td class="tc" style="color:${ttlColor};font-weight:500;">${formatDuration(c.ttl_remaining)}</td><td class="tc"><button onclick="deleteConversation('${esc(c.conversation_id)}')" class="btn-icon btn-icon-danger" title="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td></tr>`;
+      }).join('');
+    }
+
+    async function deleteConversation(id) {
+      if (!confirm('确定删除此会话？')) return;
+      try { await api('/admin/api/conversations', { method: 'DELETE', body: JSON.stringify({ conversation_id: id }) }); showToast('删除成功', 'success'); loadConversations(); } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+    }
+
+    async function clearConversations() {
+      if (!confirm('确定清空所有会话？此操作不可恢复！')) return;
+      try { await api('/admin/api/conversations/clear', { method: 'POST' }); showToast('会话已清空', 'success'); loadConversations(); } catch (e) { showToast('清空失败: ' + e.message, 'error'); }
+    }
+
+    function logout() { localStorage.removeItem('adminToken'); location.href = '/admin/login'; }
+
+    // ==================== 初始化 ====================
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!localStorage.getItem('adminToken')) { location.href = '/admin/login'; return; }
+      refreshTokens();
+    });
+
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+      modal.addEventListener('click', e => { if (e.target === modal) closeModal(modal.id); });
+    });
+  </script>
+</body>
+</html>
