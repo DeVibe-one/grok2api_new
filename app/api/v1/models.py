@@ -13,7 +13,6 @@ router = APIRouter()
 # model_id → (grok_model, model_mode, display_name, description)
 
 MODEL_REGISTRY = {
-    # ── Grok 3 系列 ──
     "grok-3": (
         "grok-3", "MODEL_MODE_GROK_3",
         "Grok 3", "Standard Grok 3 model",
@@ -22,48 +21,27 @@ MODEL_REGISTRY = {
         "grok-3", "MODEL_MODE_GROK_3_MINI_THINKING",
         "Grok 3 Mini", "Grok 3 with mini thinking",
     ),
-    "grok-3-thinking": (
-        "grok-3", "MODEL_MODE_GROK_3_THINKING",
-        "Grok 3 Thinking", "Grok 3 with full thinking",
-    ),
-    # ── Grok 4 系列 ──
-    "grok-4": (
-        "grok-4", "MODEL_MODE_GROK_4",
-        "Grok 4", "Standard Grok 4 model",
-    ),
-    "grok-4-mini": (
-        "grok-4-mini", "MODEL_MODE_GROK_4_MINI_THINKING",
-        "Grok 4 Mini", "Fast Grok 4 Mini Thinking model",
-    ),
-    "grok-4-thinking": (
-        "grok-4", "MODEL_MODE_GROK_4_THINKING",
-        "Grok 4 Thinking", "Grok 4 with full thinking",
-    ),
-    "grok-4-heavy": (
-        "grok-4", "MODEL_MODE_HEAVY",
-        "Grok 4 Heavy", "Most powerful Grok 4 model (requires Super Token)",
-    ),
-    # ── Grok 4.1 系列 ──
-    "grok-4.1-mini": (
-        "grok-4-1-thinking-1129", "MODEL_MODE_GROK_4_1_MINI_THINKING",
-        "Grok 4.1 Mini", "Grok 4.1 mini thinking model",
-    ),
-    "grok-4.1-fast": (
-        "grok-4-1-thinking-1129", "MODEL_MODE_FAST",
-        "Grok 4.1 Fast", "Fast version of Grok 4.1",
-    ),
-    "grok-4.1-expert": (
-        "grok-4-1-thinking-1129", "MODEL_MODE_EXPERT",
-        "Grok 4.1 Expert", "Expert mode with enhanced reasoning",
-    ),
     "grok-4.1-thinking": (
         "grok-4-1-thinking-1129", "MODEL_MODE_GROK_4_1_THINKING",
-        "Grok 4.1 Thinking", "Grok 4.1 with advanced thinking",
+        "Grok", "Grok",
+    ),
+    "grok-4.2-fast": (
+        "grok-420", "MODEL_MODE_FAST",
+        "Grok", "Grok",
+    ),
+    "grok-4.2": (
+        "grok-4-1-thinking-1129", "MODEL_MODE_GROK_420",
+        "Grok 4.2", "Standard Grok 4.2 model",
+    ),
+    "grok-expert": (
+        "grok-420", "MODEL_MODE_EXPERT",
+        "Grok 4.2 Thinking", "Grok 4.2 Thinking",
     ),
 }
 
 # ── 别名：兼容直接传内部模型名 ──
 MODEL_ALIASES = {
+    "grok-420": "grok-4.2",
     "grok-4-1-thinking-1129": "grok-4.1-thinking",
     "grok-4-mini-thinking-tahoe": "grok-4-mini",
 }

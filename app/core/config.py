@@ -36,6 +36,9 @@ DEFAULTS = {
     "max_log_entries": 1000,
     "max_image_cache_mb": 500,
     "max_log_file_mb": 10,
+
+    "show_thinking": True,
+    "show_search": True,
 }
 
 
@@ -106,6 +109,10 @@ class RuntimeConfig:
         "max_log_entries": {"type": "int", "label": "请求日志上限", "desc": "最多保留的请求日志条数，超出自动清理旧日志", "group": "system"},
         "max_log_file_mb": {"type": "int", "label": "日志文件上限(MB)", "desc": "单个日志文件最大大小，超出自动清空", "group": "system"},
         "max_image_cache_mb": {"type": "int", "label": "图片缓存上限(MB)", "desc": "图片缓存最大占用空间，超出自动清理最旧的图片", "group": "image"},
+
+        # 输出控制
+        "show_thinking": {"type": "bool", "label": "显示思考过程", "desc": "在响应中包含模型的思考过程（<think>标签）", "group": "output"},
+        "show_search": {"type": "bool", "label": "显示搜索过程", "desc": "在思考过程中展示搜索查询和结果数量", "group": "output"},
     }
 
     # 配置分组
@@ -114,7 +121,8 @@ class RuntimeConfig:
         "network": {"label": "网络设置", "order": 2},
         "image": {"label": "图片设置", "order": 3},
         "conversation": {"label": "会话管理", "order": 4},
-        "system": {"label": "系统设置", "order": 5},
+        "output": {"label": "输出控制", "order": 5},
+        "system": {"label": "系统设置", "order": 6},
     }
 
     def __init__(self):

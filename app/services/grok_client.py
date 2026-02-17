@@ -157,10 +157,12 @@ class GrokClient:
         if resolved_model != model:
             logger.info(f"[GrokClient] 模型映射: {model} -> {grok_model} (mode={model_mode})")
 
-        # 自动检测是否显示思考过程
-        show_thinking = thinking
-        if show_thinking is None:
-            show_thinking = "THINKING" in model_mode
+        # 思考过程：由全局配置控制是否展示
+        show_thinking = settings.show_thinking
+
+        # is_think_harder: 告诉 Grok 是否启用深度思考
+        # THINKING / EXPERT / MINI_THINKING 模式启用
+        is_think_harder = any(k in model_mode for k in ("THINKING", "EXPERT"))
 
         # 上传图片
         file_ids = []
@@ -205,7 +207,8 @@ class GrokClient:
                 grok_model,
                 model_mode,
                 context.last_response_id,
-                file_ids
+                file_ids,
+                is_think_harder
             )
             logger.info(f"[GrokClient] 继续对话: {conversation_id} -> {context.conversation_id}, 只发送新消息")
 
@@ -214,7 +217,7 @@ class GrokClient:
         else:
             # 新对话 - message_text 包含所有初始消息
             url = GrokClient.NEW_CONVERSATION_URL
-            payload = GrokClient._build_new_payload(message_text, grok_model, model_mode, file_ids)
+            payload = GrokClient._build_new_payload(message_text, grok_model, model_mode, file_ids, is_think_harder)
             logger.info(f"[GrokClient] 创建新对话")
             force_stream = False
 
@@ -368,7 +371,7 @@ class GrokClient:
             return "\n\n".join(parts), images
 
     @staticmethod
-    def _build_new_payload(message: str, grok_model: str, model_mode: str, file_ids: List[str] = None) -> Dict:
+    def _build_new_payload(message: str, grok_model: str, model_mode: str, file_ids: List[str] = None, is_think_harder: bool = False) -> Dict:
         """构建新对话的请求载荷"""
         return {
             "temporary": True,
@@ -389,16 +392,22 @@ class GrokClient:
             "isReasoning": False,
             "webpageUrls": [],
             "disableTextFollowUps": False,
+            "responseMetadata": {
+                "is_think_harder": is_think_harder,
+                "is_quick_answer": False,
+                "requestModelDetails": {"modelId": grok_model},
+            },
             "disableMemory": False,
             "forceSideBySide": False,
             "modelMode": model_mode,
-            "isAsyncChat": False
+            "isAsyncChat": False,
+            "disableSelfHarmShortCircuit": False,
         }
 
     @staticmethod
-    def _build_continue_payload(message: str, grok_model: str, model_mode: str, parent_response_id: str, file_ids: List[str] = None) -> Dict:
+    def _build_continue_payload(message: str, grok_model: str, model_mode: str, parent_response_id: str, file_ids: List[str] = None, is_think_harder: bool = False) -> Dict:
         """构建继续对话的请求载荷"""
-        payload = GrokClient._build_new_payload(message, grok_model, model_mode, file_ids)
+        payload = GrokClient._build_new_payload(message, grok_model, model_mode, file_ids, is_think_harder)
         payload["parentResponseId"] = parent_response_id
         return payload
 
@@ -789,17 +798,45 @@ class GrokClient:
                                         yield "</think>\n"
                                         think_opened = False
 
-                                # 提取 token（文本片段）- 带思考检测
+                                # 提取 token（文本片段）- 带思考检测和搜索过程展示
                                 # token 可能在 response_data.token 或 result.token
                                 # isThinking 也可能在不同层级
                                 if not is_image_mode:
                                     token_text = response_data.get("token")
                                     is_thinking = response_data.get("isThinking", False)
+                                    message_tag = response_data.get("messageTag", "")
 
                                     # 备用：token 在 result 顶层（继续对话时常见）
                                     if token_text is None:
                                         token_text = result.get("token")
                                         is_thinking = result.get("isThinking", is_thinking)
+
+                                    # 搜索过程：tool_usage_card 包含搜索查询
+                                    if message_tag == "tool_usage_card":
+                                        if token_text and show_thinking and settings.show_search:
+                                            query_match = re.search(r'"query"\s*:\s*"([^"]*)"', token_text)
+                                            if query_match:
+                                                if not think_opened:
+                                                    yield "<think>\n"
+                                                    think_opened = True
+                                                yield f"🔍 搜索: {query_match.group(1)}\n"
+                                        continue
+
+                                    # 搜索结果
+                                    if web_results := response_data.get("webSearchResults"):
+                                        if show_thinking and settings.show_search:
+                                            if isinstance(web_results, dict):
+                                                results_list = web_results.get("results", [])
+                                            elif isinstance(web_results, list):
+                                                results_list = web_results
+                                            else:
+                                                results_list = []
+                                            if results_list:
+                                                if not think_opened:
+                                                    yield "<think>\n"
+                                                    think_opened = True
+                                                yield f"📄 找到 {len(results_list)} 条结果\n"
+                                        continue
 
                                     if token_text and isinstance(token_text, str):
                                         if show_thinking:
@@ -946,6 +983,29 @@ class GrokClient:
                             # 从 token 提取文本（非图片模式）
                             if not is_image_mode:
                                 is_thinking = response_data.get("isThinking", False)
+                                message_tag = response_data.get("messageTag", "")
+
+                                # 搜索过程：提取查询关键词
+                                if message_tag == "tool_usage_card":
+                                    if show_thinking and settings.show_search:
+                                        if token_text := response_data.get("token"):
+                                            query_match = re.search(r'"query"\s*:\s*"([^"]*)"', token_text)
+                                            if query_match:
+                                                thinking_content += f"🔍 搜索: {query_match.group(1)}\n"
+                                    continue
+
+                                # 搜索结果
+                                if web_results := response_data.get("webSearchResults"):
+                                    if show_thinking and settings.show_search:
+                                        if isinstance(web_results, dict):
+                                            results_list = web_results.get("results", [])
+                                        elif isinstance(web_results, list):
+                                            results_list = web_results
+                                        else:
+                                            results_list = []
+                                        if results_list:
+                                            thinking_content += f"📄 找到 {len(results_list)} 条结果\n"
+                                    continue
 
                                 if token_text := response_data.get("token"):
                                     if isinstance(token_text, str):
