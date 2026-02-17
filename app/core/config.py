@@ -98,7 +98,7 @@ class RuntimeConfig:
         "base_url": {"type": "string", "label": "图片服务地址", "desc": "图片缓存服务的外部访问地址，如 http://your-server:8000，留空则使用相对路径", "group": "image"},
 
         # 会话配置
-        "conversation_ttl": {"type": "int", "label": "会话保留时间", "desc": "会话数据保留时间（秒），默认600（10分钟）", "group": "conversation"},
+        "conversation_ttl": {"type": "int", "label": "会话保留时间", "desc": "会话数据保留时间（秒），默认72000（20小时）", "group": "conversation"},
         "max_conversations_per_token": {"type": "int", "label": "最大会话数", "desc": "每个 Token 最多保留的会话数", "group": "conversation"},
 
         # 系统配置
