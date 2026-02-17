@@ -39,6 +39,7 @@ DEFAULTS = {
     "token_file": "data/tokens.json",
 
     "max_log_entries": 1000,
+    "max_image_cache_mb": 500,
 }
 
 
@@ -107,6 +108,7 @@ class RuntimeConfig:
         "log_level": {"type": "select", "label": "日志级别", "desc": "日志输出级别", "options": ["DEBUG", "INFO", "WARNING", "ERROR"], "group": "system"},
         "debug": {"type": "bool", "label": "调试模式", "desc": "启用调试模式", "group": "system"},
         "max_log_entries": {"type": "int", "label": "日志上限", "desc": "最多保留的请求日志条数，超出自动清理旧日志", "group": "system"},
+        "max_image_cache_mb": {"type": "int", "label": "图片缓存上限(MB)", "desc": "图片缓存最大占用空间，超出自动清理最旧的图片", "group": "image"},
     }
 
     # 配置分组

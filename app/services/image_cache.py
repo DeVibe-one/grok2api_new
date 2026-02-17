@@ -118,13 +118,14 @@ class ImageCache:
         return self.to_base64(cache_path)
 
     async def _cleanup(self):
-        """清理超限缓存（最大 500MB）"""
+        """清理超限缓存"""
         if self._cleanup_lock.locked():
             return
 
         async with self._cleanup_lock:
             try:
-                max_bytes = 500 * 1024 * 1024  # 500MB
+                max_mb = settings.max_image_cache_mb
+                max_bytes = max_mb * 1024 * 1024
 
                 files = [(f, (s := f.stat()).st_size, s.st_mtime)
                          for f in self.cache_dir.glob("*") if f.is_file()]
@@ -133,7 +134,7 @@ class ImageCache:
                 if total <= max_bytes:
                     return
 
-                logger.info(f"[ImageCache] 清理缓存 {total / 1024 / 1024:.1f}MB -> 500MB")
+                logger.info(f"[ImageCache] 清理缓存 {total / 1024 / 1024:.1f}MB -> {max_mb}MB")
 
                 for path, size, _ in sorted(files, key=lambda x: x[2]):
                     if total <= max_bytes:
