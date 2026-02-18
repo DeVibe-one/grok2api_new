@@ -19,8 +19,8 @@ from app.api.v1.models import resolve_model
 # 最大重试次数（使用不同的 Token）
 MAX_RETRY_TOKENS = 3
 
-# 需要过滤的 Grok 内部 XML 标签
-FILTER_TAGS = ["xaiartifact", "xai:tool_usage_card", "grok:render"]
+# 需要过滤的 Grok 内部 XML 标签（tool_usage_card 已通过 messageTag 处理，不在此过滤）
+FILTER_TAGS = ["xaiartifact", "grok:render"]
 
 
 class GrokAPIError(Exception):
@@ -234,7 +234,7 @@ class GrokClient:
             url,
             headers=headers,
             data=orjson.dumps(payload),
-            timeout=settings.request_timeout,
+            timeout=settings.stream_timeout,
             stream=True,
             proxies=proxies
         )
@@ -700,6 +700,10 @@ class GrokClient:
                                             in_filter_tag = False
                                             tag_buffer = ""
                                             break
+                            # 防止 buffer 无限增长（超过 10KB 说明判断错了）
+                            if len(tag_buffer) > 10240:
+                                in_filter_tag = False
+                                tag_buffer = ""
                             i += 1
                             continue
 
@@ -707,13 +711,24 @@ class GrokClient:
                             remaining = token_text[i:]
                             tag_started = False
                             for tag in FILTER_TAGS:
-                                if remaining.startswith(f"<{tag}"):
+                                if remaining.startswith(f"<{tag}") or remaining.startswith(f"</{tag}"):
                                     tag_started = True
                                     break
-                                # 部分匹配（标签可能跨 token 分割）
-                                if len(remaining) < len(tag) + 2:
-                                    prefix = f"<{tag}"
-                                    if prefix.startswith(remaining):
+
+                            # 部分匹配：仅在 < 在 token 末尾时才判断（避免误判正常内容）
+                            if not tag_started and i == len(token_text) - 1:
+                                # 只有单个 < 在末尾，存入 buffer 等下个 token
+                                for tag in FILTER_TAGS:
+                                    if f"<{tag}"[0] == "<":
+                                        tag_started = True
+                                        break
+
+                            if not tag_started and len(remaining) <= max(len(t) for t in FILTER_TAGS) + 2:
+                                # 检查是否是某个过滤标签的前缀
+                                for tag in FILTER_TAGS:
+                                    open_tag = f"<{tag}"
+                                    close_tag = f"</{tag}"
+                                    if open_tag.startswith(remaining) or close_tag.startswith(remaining):
                                         tag_started = True
                                         break
 
@@ -968,6 +983,12 @@ class GrokClient:
                     except Exception as e:
                         logger.debug(f"[GrokClient] 流式解析失败: {e}")
                         continue
+
+                # 流结束时 flush 残留的 tag_buffer（防止内容截断）
+                if tag_buffer:
+                    yield tag_buffer
+                    tag_buffer = ""
+                    in_filter_tag = False
 
                 # 流结束时如果 think 标签未关闭，关闭它
                 if think_opened:
