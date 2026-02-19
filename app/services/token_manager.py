@@ -50,6 +50,8 @@ class TokenManager:
         self._refresh_total = 0
         self._refresh_completed = 0
         self._refresh_results: List[dict] = []
+        # 后台额度检查：正在检查的 token 集合（防重入）
+        self._pending_quota_checks: Set[str] = set()
 
     async def init(self):
         """初始化"""
@@ -269,6 +271,8 @@ class TokenManager:
         if token in self.tokens:
             info = self.tokens[token]
             info.consecutive_failures = 0  # 重置连续失败计数
+            # 后台异步刷新额度（不阻塞响应）
+            asyncio.create_task(self._refresh_token_quota_bg(token))
 
     async def record_failure(self, token: str, error_type: str = "normal", has_quota: bool = True):
         """记录失败并可能触发冷却
@@ -321,6 +325,32 @@ class TokenManager:
             self.tokens[token].cooldown_reason = ""
             self.tokens[token].consecutive_failures = 0
             await self._save()
+
+    async def _refresh_token_quota_bg(self, token: str):
+        """后台刷新单个 Token 的额度（不阻塞主线程）"""
+        # 防重入：同一 token 不并发检查
+        if token in self._pending_quota_checks:
+            return
+
+        info = self.tokens.get(token)
+        if not info or not info.enabled:
+            return
+
+        self._pending_quota_checks.add(token)
+        try:
+            result = await self._check_rate_limits(token)
+            if result["success"]:
+                new_remaining = result.get("remaining_queries", -1)
+                old_remaining = info.remaining_queries
+                info.remaining_queries = new_remaining
+                info.last_check = time.time()
+                if old_remaining != new_remaining:
+                    logger.info(f"[TokenManager] 后台额度更新: {info.name} {old_remaining} -> {new_remaining}")
+                    await self._save()
+        except Exception as e:
+            logger.debug(f"[TokenManager] 后台额度检查失败: {e}")
+        finally:
+            self._pending_quota_checks.discard(token)
 
     async def update_remaining_queries(self, token: str, remaining: int):
         """更新剩余查询次数"""
