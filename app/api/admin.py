@@ -32,6 +32,7 @@ _sessions: Dict[str, datetime] = {}
 
 # === 请求/响应模型 ===
 
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -98,12 +99,13 @@ class ConfigUpdateRequest(BaseModel):
 
 # === 鉴权 ===
 
+
 def verify_admin_session(authorization: Optional[str] = Header(None)) -> bool:
     """验证管理员会话（Bearer Token）"""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": "未授权访问", "code": "UNAUTHORIZED"}
+            detail={"error": "未授权访问", "code": "UNAUTHORIZED"},
         )
 
     token = authorization[7:]
@@ -111,20 +113,21 @@ def verify_admin_session(authorization: Optional[str] = Header(None)) -> bool:
     if token not in _sessions:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": "会话无效", "code": "SESSION_INVALID"}
+            detail={"error": "会话无效", "code": "SESSION_INVALID"},
         )
 
     if datetime.now() > _sessions[token]:
         del _sessions[token]
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": "会话已过期", "code": "SESSION_EXPIRED"}
+            detail={"error": "会话已过期", "code": "SESSION_EXPIRED"},
         )
 
     return True
 
 
 # === 页面路由 ===
+
 
 @router.get("/admin/login", response_class=HTMLResponse)
 async def login_page():
@@ -146,6 +149,7 @@ async def admin_page():
 
 # === 认证 API ===
 
+
 @router.post("/admin/api/login", response_model=LoginResponse)
 async def admin_login(request: LoginRequest) -> LoginResponse:
     """管理员登录"""
@@ -163,8 +167,7 @@ async def admin_login(request: LoginRequest) -> LoginResponse:
 
 @router.post("/admin/api/logout")
 async def admin_logout(
-    _: bool = Depends(verify_admin_session),
-    authorization: Optional[str] = Header(None)
+    _: bool = Depends(verify_admin_session), authorization: Optional[str] = Header(None)
 ):
     """管理员登出"""
     if authorization and authorization.startswith("Bearer "):
@@ -176,6 +179,7 @@ async def admin_logout(
 
 
 # === Token 管理 API ===
+
 
 @router.get("/admin/api/tokens")
 async def admin_list_tokens(_: bool = Depends(verify_admin_session)):
@@ -193,8 +197,7 @@ async def admin_list_tokens(_: bool = Depends(verify_admin_session)):
 
 @router.post("/admin/api/tokens")
 async def admin_create_token(
-    payload: TokenCreateRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: TokenCreateRequest, _: bool = Depends(verify_admin_session)
 ):
     """添加 Token"""
     token = token_manager._normalize_token(payload.token)
@@ -213,8 +216,7 @@ async def admin_create_token(
 
 @router.post("/admin/api/tokens/batch")
 async def admin_batch_create_tokens(
-    payload: TokenBatchCreateRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: TokenBatchCreateRequest, _: bool = Depends(verify_admin_session)
 ):
     """批量添加 Token（自动去重）"""
     result = await token_manager.add_tokens_batch(
@@ -225,8 +227,7 @@ async def admin_batch_create_tokens(
 
 @router.patch("/admin/api/tokens")
 async def admin_update_token(
-    payload: TokenUpdateRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: TokenUpdateRequest, _: bool = Depends(verify_admin_session)
 ):
     """更新 Token"""
     ok = await token_manager.update_token(
@@ -239,8 +240,7 @@ async def admin_update_token(
 
 @router.delete("/admin/api/tokens")
 async def admin_delete_token(
-    payload: TokenDeleteRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: TokenDeleteRequest, _: bool = Depends(verify_admin_session)
 ):
     """删除 Token"""
     ok = await token_manager.delete_token(payload.token)
@@ -251,8 +251,7 @@ async def admin_delete_token(
 
 @router.post("/admin/api/tokens/test")
 async def admin_test_token(
-    payload: TokenTestRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: TokenTestRequest, _: bool = Depends(verify_admin_session)
 ):
     """测试 Token 可用性"""
     result = await token_manager.test_token(payload.token)
@@ -261,8 +260,7 @@ async def admin_test_token(
 
 @router.post("/admin/api/tokens/clear-cooldown")
 async def admin_clear_token_cooldown(
-    payload: TokenClearCooldownRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: TokenClearCooldownRequest, _: bool = Depends(verify_admin_session)
 ):
     """清除 Token 冷却"""
     await token_manager.clear_cooldown(payload.token)
@@ -271,8 +269,7 @@ async def admin_clear_token_cooldown(
 
 @router.post("/admin/api/tokens/refresh-all")
 async def admin_refresh_all_tokens(
-    background_tasks: BackgroundTasks,
-    _: bool = Depends(verify_admin_session)
+    background_tasks: BackgroundTasks, _: bool = Depends(verify_admin_session)
 ):
     """刷新所有 Token（后台任务）"""
     progress = token_manager.get_refresh_progress()
@@ -292,6 +289,7 @@ async def admin_get_refresh_progress(_: bool = Depends(verify_admin_session)):
 
 # === 会话管理 API ===
 
+
 @router.get("/admin/api/conversations")
 async def admin_list_conversations(_: bool = Depends(verify_admin_session)):
     """获取会话列表"""
@@ -306,15 +304,19 @@ async def admin_list_conversations(_: bool = Depends(verify_admin_session)):
             age = now - context.updated_at
             ttl_remaining = max(0, int(settings.conversation_ttl - age))
 
-            conversations.append({
-                "conversation_id": conv_id,
-                "grok_conversation_id": context.conversation_id,
-                "token": context.token[:12] + "..." if len(context.token) > 12 else context.token,
-                "message_count": context.message_count,
-                "created_at": context.created_at,
-                "last_active": context.updated_at,
-                "ttl_remaining": ttl_remaining
-            })
+            conversations.append(
+                {
+                    "conversation_id": conv_id,
+                    "grok_conversation_id": context.conversation_id,
+                    "token": context.token[:12] + "..."
+                    if len(context.token) > 12
+                    else context.token,
+                    "message_count": context.message_count,
+                    "created_at": context.created_at,
+                    "last_active": context.updated_at,
+                    "ttl_remaining": ttl_remaining,
+                }
+            )
 
         # 使用 conversation_manager 的统计
         manager_stats = conversation_manager.get_stats()
@@ -325,7 +327,7 @@ async def admin_list_conversations(_: bool = Depends(verify_admin_session)):
             "ttl_seconds": settings.conversation_ttl,
             "last_cleanup_time": manager_stats["last_cleanup_time"],
             "total_cleaned": manager_stats["total_cleaned"],
-            "auto_cleanup_enabled": manager_stats["auto_cleanup_enabled"]
+            "auto_cleanup_enabled": manager_stats["auto_cleanup_enabled"],
         }
 
         conversations.sort(key=lambda x: x.get("last_active", 0), reverse=True)
@@ -337,8 +339,7 @@ async def admin_list_conversations(_: bool = Depends(verify_admin_session)):
 
 @router.delete("/admin/api/conversations")
 async def admin_delete_conversation(
-    payload: ConversationDeleteRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: ConversationDeleteRequest, _: bool = Depends(verify_admin_session)
 ):
     """删除单个会话"""
     try:
@@ -362,9 +363,7 @@ async def admin_clear_conversations(_: bool = Depends(verify_admin_session)):
     try:
         from app.services.conversation_manager import conversation_manager
 
-        conversation_manager.conversations.clear()
-        conversation_manager.token_conversations.clear()
-        await conversation_manager._save_async()
+        await conversation_manager.clear_all()
 
         return {"ok": True, "message": "所有会话已清空"}
     except Exception as e:
@@ -373,46 +372,42 @@ async def admin_clear_conversations(_: bool = Depends(verify_admin_session)):
 
 # === 请求统计 API ===
 
+
 @router.get("/admin/api/stats")
 async def admin_get_stats(_: bool = Depends(verify_admin_session)):
     """获取统计摘要"""
     return {
         "summary": request_stats.get_summary(),
         "token_stats": token_manager.get_stats(),
-        "key_stats": api_key_manager.get_stats()
+        "key_stats": api_key_manager.get_stats(),
     }
 
 
 @router.get("/admin/api/stats/hourly")
 async def admin_get_hourly_stats(
-    hours: int = 24,
-    _: bool = Depends(verify_admin_session)
+    hours: int = 24, _: bool = Depends(verify_admin_session)
 ):
     """获取小时统计"""
     return {"data": request_stats.get_hourly_stats(hours)}
 
 
 @router.get("/admin/api/stats/daily")
-async def admin_get_daily_stats(
-    days: int = 7,
-    _: bool = Depends(verify_admin_session)
-):
+async def admin_get_daily_stats(days: int = 7, _: bool = Depends(verify_admin_session)):
     """获取日统计"""
     return {"data": request_stats.get_daily_stats(days)}
 
 
 # === 日志审计 API ===
 
+
 @router.get("/admin/api/logs")
 async def admin_get_logs(
-    limit: int = 100,
-    offset: int = 0,
-    _: bool = Depends(verify_admin_session)
+    limit: int = 100, offset: int = 0, _: bool = Depends(verify_admin_session)
 ):
     """获取请求日志"""
     return {
         "logs": request_logger.get_logs(limit, offset),
-        "total": request_logger.get_total()
+        "total": request_logger.get_total(),
     }
 
 
@@ -425,6 +420,7 @@ async def admin_clear_logs(_: bool = Depends(verify_admin_session)):
 
 # === API Key 管理 API ===
 
+
 @router.get("/admin/api/keys")
 async def admin_list_keys(_: bool = Depends(verify_admin_session)):
     """获取 API Key 列表"""
@@ -434,8 +430,7 @@ async def admin_list_keys(_: bool = Depends(verify_admin_session)):
 
 @router.post("/admin/api/keys")
 async def admin_create_key(
-    payload: ApiKeyCreateRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: ApiKeyCreateRequest, _: bool = Depends(verify_admin_session)
 ):
     """创建 API Key"""
     if payload.count > 1:
@@ -448,8 +443,7 @@ async def admin_create_key(
 
 @router.patch("/admin/api/keys")
 async def admin_update_key(
-    payload: ApiKeyUpdateRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: ApiKeyUpdateRequest, _: bool = Depends(verify_admin_session)
 ):
     """更新 API Key"""
     ok = await api_key_manager.update_key(
@@ -462,8 +456,7 @@ async def admin_update_key(
 
 @router.delete("/admin/api/keys")
 async def admin_delete_keys(
-    payload: ApiKeyDeleteRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: ApiKeyDeleteRequest, _: bool = Depends(verify_admin_session)
 ):
     """删除 API Key"""
     deleted = await api_key_manager.delete_keys_batch(payload.keys)
@@ -472,20 +465,20 @@ async def admin_delete_keys(
 
 # === 系统配置 API ===
 
+
 @router.get("/admin/api/config")
 async def admin_get_config(_: bool = Depends(verify_admin_session)):
     """获取系统配置"""
     return {
         "schema": runtime_config.get_schema(),
         "groups": runtime_config.get_groups(),
-        "values": runtime_config.get_all()
+        "values": runtime_config.get_all(),
     }
 
 
 @router.post("/admin/api/config")
 async def admin_update_config(
-    payload: ConfigUpdateRequest,
-    _: bool = Depends(verify_admin_session)
+    payload: ConfigUpdateRequest, _: bool = Depends(verify_admin_session)
 ):
     """更新系统配置"""
     results = await runtime_config.set_batch(payload.config)
@@ -493,10 +486,7 @@ async def admin_update_config(
 
 
 @router.post("/admin/api/config/reset")
-async def admin_reset_config(
-    key: str,
-    _: bool = Depends(verify_admin_session)
-):
+async def admin_reset_config(key: str, _: bool = Depends(verify_admin_session)):
     """重置配置为默认值"""
     ok = await runtime_config.reset(key)
     return {"ok": ok}
@@ -504,23 +494,17 @@ async def admin_reset_config(
 
 # === 图片缓存 API ===
 
+
 @router.get("/admin/api/images")
 async def admin_list_images(_: bool = Depends(verify_admin_session)):
     """获取缓存图片列表"""
     images = image_cache.list_cached_images()
     stats = image_cache.get_cache_stats()
-    return {
-        "ok": True,
-        "images": images,
-        "stats": stats
-    }
+    return {"ok": True, "images": images, "stats": stats}
 
 
 @router.delete("/admin/api/images")
-async def admin_delete_image(
-    filename: str,
-    _: bool = Depends(verify_admin_session)
-):
+async def admin_delete_image(filename: str, _: bool = Depends(verify_admin_session)):
     """删除指定缓存图片"""
     success = await image_cache.delete_cached_image(filename)
     return {"ok": success}
@@ -534,6 +518,7 @@ async def admin_clear_images(_: bool = Depends(verify_admin_session)):
 
 
 # === 后备 HTML ===
+
 
 def _get_fallback_login_html() -> str:
     return """<!DOCTYPE html>

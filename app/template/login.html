@@ -188,6 +188,20 @@
         const form = document.getElementById('loginForm');
         const btn = document.getElementById('loginButton');
 
+        function parseLoginError(payload) {
+            if (!payload) return '登录失败';
+            if (typeof payload.message === 'string' && payload.message) return payload.message;
+            if (typeof payload.detail === 'string' && payload.detail) return payload.detail;
+            if (payload.detail && typeof payload.detail === 'object') {
+                if (payload.detail.error && typeof payload.detail.error === 'object' && payload.detail.error.message) {
+                    return payload.detail.error.message;
+                }
+                if (payload.detail.message) return payload.detail.message;
+            }
+            if (payload.error && typeof payload.error === 'string') return payload.error;
+            return '登录失败';
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             btn.disabled = true;
@@ -208,7 +222,7 @@
                     localStorage.setItem('adminToken', d.token);
                     location.href = '/admin';
                 } else {
-                    showToast(d.message || '登录失败', 'error');
+                    showToast(parseLoginError(d), 'error');
                 }
             } catch (e) {
                 showToast('网络错误，请稍后重试', 'error');

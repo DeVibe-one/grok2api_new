@@ -596,13 +596,29 @@
       return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
     }
 
+    function extractErrorMessage(data, status) {
+      if (!data) return 'HTTP ' + status;
+      if (typeof data === 'string') return data;
+      const detail = data.detail;
+      if (typeof detail === 'string' && detail) return detail;
+      if (detail && typeof detail === 'object') {
+        if (typeof detail.error === 'string' && detail.error) return detail.error;
+        if (detail.error && typeof detail.error === 'object' && detail.error.message) return detail.error.message;
+        if (detail.message) return detail.message;
+      }
+      if (typeof data.error === 'string' && data.error) return data.error;
+      if (data.error && typeof data.error === 'object' && data.error.message) return data.error.message;
+      if (data.message) return data.message;
+      return 'HTTP ' + status;
+    }
+
     async function api(path, options = {}) {
       const res = await fetch(path, { ...options, headers: { ...getAuthHeaders(), ...(options.headers || {}) } });
       if (res.status === 401) { localStorage.removeItem('adminToken'); location.href = '/admin/login'; return; }
       const text = await res.text();
       let data = null;
       try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
-      if (!res.ok) throw new Error((data?.detail || data?.error || data?.message) || 'HTTP ' + res.status);
+      if (!res.ok) throw new Error(extractErrorMessage(data, res.status));
       return data;
     }
 
