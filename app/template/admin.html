@@ -653,11 +653,51 @@
     function openModal(id) { document.getElementById(id).classList.add('open'); }
     function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-    function copyText(text) {
-      navigator.clipboard.writeText(text).then(() => showToast('已复制', 'success')).catch(() => {
-        const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    function fallbackCopyText(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-9999px';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      try {
+        ta.focus();
+        ta.select();
+        return typeof document.execCommand === 'function' && document.execCommand('copy');
+      } catch (_) {
+        return false;
+      } finally {
+        document.body.removeChild(ta);
+      }
+    }
+
+    async function copyText(text) {
+      const value = String(text ?? '');
+      if (!value) {
+        showToast('复制失败：内容为空', 'error');
+        return;
+      }
+
+      try {
+        if (
+          typeof navigator !== 'undefined' &&
+          navigator.clipboard &&
+          typeof navigator.clipboard.writeText === 'function' &&
+          window.isSecureContext
+        ) {
+          await navigator.clipboard.writeText(value);
+          showToast('已复制', 'success');
+          return;
+        }
+      } catch (_) {
+      }
+
+      if (fallbackCopyText(value)) {
         showToast('已复制', 'success');
-      });
+      } else {
+        showToast('复制失败：当前环境不支持剪贴板', 'error');
+      }
     }
 
     // ==================== Tab 切换 ====================
