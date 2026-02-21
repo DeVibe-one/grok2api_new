@@ -18,6 +18,7 @@ CLEANUP_INTERVAL = 600
 @dataclass
 class ConversationContext:
     """会话上下文"""
+
     conversation_id: str  # Grok 会话 ID
     last_response_id: str  # 最后一条响应 ID
     created_at: float
@@ -46,7 +47,9 @@ class ConversationManager:
         self._total_cleaned: int = 0
 
     @staticmethod
-    def compute_history_hash(messages: List[Dict[str, Any]], exclude_last_user: bool = False) -> str:
+    def compute_history_hash(
+        messages: List[Dict[str, Any]], exclude_last_user: bool = False
+    ) -> str:
         """计算消息历史的哈希值 - 基于 system + 所有 user 消息
 
         存储时：hash(system + 所有 user) → 作为下次查找目标
@@ -70,14 +73,22 @@ class ConversationManager:
             if role == "system":
                 content = msg.get("content", "")
                 if isinstance(content, list):
-                    text_parts = [item.get("text", "") for item in content if item.get("type") == "text"]
+                    text_parts = [
+                        item.get("text", "")
+                        for item in content
+                        if item.get("type") == "text"
+                    ]
                     content = "".join(text_parts)
                 system_parts.append(f"system:{content}")
 
             elif role == "user":
                 content = msg.get("content", "")
                 if isinstance(content, list):
-                    text_parts = [item.get("text", "") for item in content if item.get("type") == "text"]
+                    text_parts = [
+                        item.get("text", "")
+                        for item in content
+                        if item.get("type") == "text"
+                    ]
                     content = "".join(text_parts)
                 user_parts.append(f"user:{content}")
 
@@ -125,10 +136,14 @@ class ConversationManager:
         # 启动自动清理任务
         self._start_cleanup_task()
 
-        logger.info(f"[ConversationManager] 已加载 {len(self.conversations)} 个会话，自动清理已启动")
+        logger.info(
+            f"[ConversationManager] 已加载 {len(self.conversations)} 个会话，自动清理已启动"
+        )
         self.initialized = True
 
-    async def find_conversation_by_history(self, messages: List[Dict[str, Any]]) -> Optional[str]:
+    async def find_conversation_by_history(
+        self, messages: List[Dict[str, Any]]
+    ) -> Optional[str]:
         """通过消息历史自动查找会话 ID
 
         查找逻辑：排除最后一条 user 消息后计算哈希，匹配已存储的完整哈希
@@ -154,7 +169,9 @@ class ConversationManager:
             # 检查会话是否仍然有效
             context = await self.get_conversation(conv_id)
             if context:
-                logger.info(f"[ConversationManager] 自动识别会话: {conv_id}, hash={history_hash}")
+                logger.info(
+                    f"[ConversationManager] 自动识别会话: {conv_id}, hash={history_hash}"
+                )
                 return conv_id
             else:
                 # 会话已过期，清理哈希映射
@@ -162,9 +179,15 @@ class ConversationManager:
 
         return None
 
-    async def create_conversation(self, token: str, grok_conversation_id: str,
-                                  grok_response_id: str, messages: List[Dict[str, Any]] = None,
-                                  share_link_id: str = "") -> str:
+    async def create_conversation(
+        self,
+        token: str,
+        grok_conversation_id: str,
+        grok_response_id: str,
+        messages: List[Dict[str, Any]] = None,
+        share_link_id: str = "",
+        openai_conversation_id: Optional[str] = None,
+    ) -> str:
         """创建新会话
 
         Args:
@@ -176,8 +199,10 @@ class ConversationManager:
         Returns:
             OpenAI 格式的会话 ID
         """
-        # 生成 OpenAI 格式的会话 ID
-        openai_conv_id = f"conv-{uuid.uuid4().hex[:24]}"
+        # 生成 OpenAI 格式的会话 ID（或使用预分配 ID）
+        openai_conv_id = (openai_conversation_id or "").strip()
+        if not openai_conv_id:
+            openai_conv_id = f"conv-{uuid.uuid4().hex[:24]}"
 
         # 计算历史哈希（只基于 system 和 user 消息）
         history_hash = ""
@@ -193,7 +218,7 @@ class ConversationManager:
             message_count=1,
             token=token,
             history_hash=history_hash,
-            share_link_id=share_link_id
+            share_link_id=share_link_id,
         )
 
         # 保存到内存
@@ -211,14 +236,18 @@ class ConversationManager:
         # 限制每个 token 的会话数量
         await self._limit_token_conversations(token)
 
-        logger.info(f"[ConversationManager] 创建会话: {openai_conv_id} -> {grok_conversation_id}, hash={history_hash}")
+        logger.info(
+            f"[ConversationManager] 创建会话: {openai_conv_id} -> {grok_conversation_id}, hash={history_hash}"
+        )
 
         # 异步保存
         await self._save_async()
 
         return openai_conv_id
 
-    async def get_conversation(self, openai_conv_id: str) -> Optional[ConversationContext]:
+    async def get_conversation(
+        self, openai_conv_id: str
+    ) -> Optional[ConversationContext]:
         """获取会话上下文"""
         context = self.conversations.get(openai_conv_id)
 
@@ -231,11 +260,15 @@ class ConversationManager:
 
         return context
 
-    async def update_conversation(self, openai_conv_id: str, grok_response_id: str,
-                                   messages: List[Dict[str, Any]] = None,
-                                   share_link_id: str = None,
-                                   grok_conversation_id: str = None,
-                                   token: str = None):
+    async def update_conversation(
+        self,
+        openai_conv_id: str,
+        grok_response_id: str,
+        messages: List[Dict[str, Any]] = None,
+        share_link_id: str = None,
+        grok_conversation_id: str = None,
+        token: str = None,
+    ):
         """更新会话（添加新的响应 ID，并刷新哈希）"""
         context = self.conversations.get(openai_conv_id)
         if not context:
@@ -258,14 +291,21 @@ class ConversationManager:
             new_hash = self.compute_history_hash(messages)
             if new_hash and new_hash != context.history_hash:
                 # 移除旧哈希映射
-                if context.history_hash and context.history_hash in self.hash_to_conversation:
+                if (
+                    context.history_hash
+                    and context.history_hash in self.hash_to_conversation
+                ):
                     del self.hash_to_conversation[context.history_hash]
                 # 存储新哈希映射
                 context.history_hash = new_hash
                 self.hash_to_conversation[new_hash] = openai_conv_id
-                logger.debug(f"[ConversationManager] 哈希已更新: {openai_conv_id}, newHash={new_hash}")
+                logger.debug(
+                    f"[ConversationManager] 哈希已更新: {openai_conv_id}, newHash={new_hash}"
+                )
 
-        logger.debug(f"[ConversationManager] 更新会话: {openai_conv_id}, 消息数: {context.message_count}")
+        logger.debug(
+            f"[ConversationManager] 更新会话: {openai_conv_id}, 消息数: {context.message_count}"
+        )
 
         # 异步保存
         await self._save_async()
@@ -275,7 +315,10 @@ class ConversationManager:
         context = self.conversations.pop(openai_conv_id, None)
         if context:
             # 从哈希映射中移除
-            if context.history_hash and context.history_hash in self.hash_to_conversation:
+            if (
+                context.history_hash
+                and context.history_hash in self.hash_to_conversation
+            ):
                 del self.hash_to_conversation[context.history_hash]
 
             # 从 token 映射中移除
@@ -298,11 +341,23 @@ class ConversationManager:
             for conv_id in conv_ids[:to_delete]:
                 context = self.conversations.get(conv_id)
                 if context:
+                    if (
+                        context.history_hash
+                        and context.history_hash in self.hash_to_conversation
+                    ):
+                        del self.hash_to_conversation[context.history_hash]
                     del self.conversations[conv_id]
                     logger.info(f"[ConversationManager] 清理旧会话: {conv_id}")
 
             # 更新映射
             self.token_conversations[token] = conv_ids[to_delete:]
+
+    async def clear_all(self):
+        """清空所有会话与索引映射。"""
+        self.conversations.clear()
+        self.token_conversations.clear()
+        self.hash_to_conversation.clear()
+        await self._save_async()
 
     async def _cleanup_expired(self):
         """清理过期会话"""
@@ -341,7 +396,9 @@ class ConversationManager:
                     logger.error(f"[ConversationManager] 自动清理出错: {e}")
 
         self._cleanup_task = asyncio.create_task(cleanup_loop())
-        logger.info(f"[ConversationManager] 自动清理任务已启动，间隔 {CLEANUP_INTERVAL} 秒")
+        logger.info(
+            f"[ConversationManager] 自动清理任务已启动，间隔 {CLEANUP_INTERVAL} 秒"
+        )
 
     def _stop_cleanup_task(self):
         """停止自动清理任务"""
@@ -358,7 +415,7 @@ class ConversationManager:
                     conv_id: asdict(context)
                     for conv_id, context in self.conversations.items()
                 },
-                "token_conversations": self.token_conversations
+                "token_conversations": self.token_conversations,
             }
             await storage_manager.save_json("conversations.json", data)
         except Exception as e:
@@ -375,11 +432,16 @@ class ConversationManager:
         return {
             "total_conversations": len(self.conversations),
             "tokens_with_conversations": len(self.token_conversations),
-            "avg_messages_per_conversation": sum(c.message_count for c in self.conversations.values()) / len(self.conversations) if self.conversations else 0,
+            "avg_messages_per_conversation": sum(
+                c.message_count for c in self.conversations.values()
+            )
+            / len(self.conversations)
+            if self.conversations
+            else 0,
             "ttl_seconds": settings.conversation_ttl,
             "last_cleanup_time": self._last_cleanup_time,
             "total_cleaned": self._total_cleaned,
-            "auto_cleanup_enabled": self._cleanup_task is not None
+            "auto_cleanup_enabled": self._cleanup_task is not None,
         }
 
 

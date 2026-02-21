@@ -1,20 +1,35 @@
 """OpenAI 数据模型"""
 
-from typing import List, Optional, Union, Dict, Any
-from pydantic import BaseModel, Field
+from typing import List, Optional, Union, Dict, Any, Literal
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatMessage(BaseModel):
     """聊天消息"""
-    role: str
+
+    role: Literal["system", "user", "assistant", "tool"]
     content: Union[str, List[Dict[str, Any]]]
     name: Optional[str] = None
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(
+        cls, value: Union[str, List[Dict[str, Any]]]
+    ) -> Union[str, List[Dict[str, Any]]]:
+        if isinstance(value, str):
+            if not value.strip():
+                raise ValueError("content cannot be empty")
+            return value
+        if not value:
+            raise ValueError("content list cannot be empty")
+        return value
 
 
 class ChatCompletionRequest(BaseModel):
     """聊天补全请求"""
-    model: str
-    messages: List[ChatMessage]
+
+    model: str = Field(..., min_length=1)
+    messages: List[ChatMessage] = Field(..., min_length=1)
     temperature: Optional[float] = 1.0
     top_p: Optional[float] = 1.0
     n: Optional[int] = 1
@@ -32,12 +47,14 @@ class ChatCompletionRequest(BaseModel):
 
 class ChatCompletionResponseMessage(BaseModel):
     """响应消息"""
+
     role: str
     content: str
 
 
 class ChatCompletionResponseChoice(BaseModel):
     """响应选项"""
+
     index: int
     message: ChatCompletionResponseMessage
     finish_reason: Optional[str] = None
@@ -45,6 +62,7 @@ class ChatCompletionResponseChoice(BaseModel):
 
 class ChatCompletionResponse(BaseModel):
     """聊天补全响应"""
+
     id: str
     object: str = "chat.completion"
     created: int
@@ -58,12 +76,14 @@ class ChatCompletionResponse(BaseModel):
 
 class ChatCompletionChunkDelta(BaseModel):
     """流式响应增量"""
+
     role: Optional[str] = None
     content: Optional[str] = None
 
 
 class ChatCompletionChunkChoice(BaseModel):
     """流式响应选项"""
+
     index: int
     delta: ChatCompletionChunkDelta
     finish_reason: Optional[str] = None
@@ -71,6 +91,7 @@ class ChatCompletionChunkChoice(BaseModel):
 
 class ChatCompletionChunk(BaseModel):
     """流式响应块"""
+
     id: str
     object: str = "chat.completion.chunk"
     created: int
@@ -83,6 +104,7 @@ class ChatCompletionChunk(BaseModel):
 
 class Model(BaseModel):
     """模型信息"""
+
     id: str
     object: str = "model"
     created: int
@@ -91,20 +113,36 @@ class Model(BaseModel):
 
 class ModelList(BaseModel):
     """模型列表"""
+
     object: str = "list"
     data: List[Model]
 
 
 class ResponseRequest(BaseModel):
     """继续对话请求 - 真实上下文，不拼接历史"""
-    conversation_id: str  # 必需：会话 ID
+
+    conversation_id: str = Field(..., min_length=1)  # 必需：会话 ID
     message: Union[str, List[Dict[str, Any]]]  # 当前新消息
-    model: Optional[str] = "grok-2-1212"
+    model: Optional[str] = Field(default="grok-4.2", min_length=1)
     stream: Optional[bool] = False
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(
+        cls, value: Union[str, List[Dict[str, Any]]]
+    ) -> Union[str, List[Dict[str, Any]]]:
+        if isinstance(value, str):
+            if not value.strip():
+                raise ValueError("message cannot be empty")
+            return value
+        if not value:
+            raise ValueError("message list cannot be empty")
+        return value
 
 
 class ResponseResponse(BaseModel):
     """继续对话响应"""
+
     id: str
     object: str = "response"
     created: int

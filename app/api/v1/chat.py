@@ -3,7 +3,7 @@
 import time
 import uuid
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from app.models.openai_models import (
@@ -15,7 +15,7 @@ from app.models.openai_models import (
     ChatCompletionChunkChoice,
     ChatCompletionChunkDelta,
     ResponseRequest,
-    ResponseResponse
+    ResponseResponse,
 )
 from app.services.grok_client import GrokClient
 from app.services.api_keys import api_key_manager
@@ -63,9 +63,9 @@ async def _verify_api_key(raw_request: Request) -> Optional[str]:
                 "error": {
                     "message": "缺少认证令牌，请在请求头中提供 Authorization: Bearer <API_KEY>",
                     "type": "authentication_error",
-                    "code": "missing_token"
+                    "code": "missing_token",
                 }
-            }
+            },
         )
 
     key_info = api_key_manager.validate_key(api_key)
@@ -76,9 +76,9 @@ async def _verify_api_key(raw_request: Request) -> Optional[str]:
                 "error": {
                     "message": "无效的 API Key",
                     "type": "authentication_error",
-                    "code": "invalid_token"
+                    "code": "invalid_token",
                 }
-            }
+            },
         )
 
     # 记录使用
@@ -87,7 +87,9 @@ async def _verify_api_key(raw_request: Request) -> Optional[str]:
 
 
 @router.post("/chat/completions")
-async def chat_completions(request: ChatCompletionRequest, raw_request: Request):
+async def chat_completions(
+    request: ChatCompletionRequest, raw_request: Request, raw_response: Response
+):
     """
     聊天补全接口 - OpenAI 兼容
 
@@ -97,6 +99,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
     - 通过 X-Conversation-ID 请求头或 conversation_id 参数继续对话
     """
     start_time = time.time()
+    request_id = f"req-{uuid.uuid4().hex[:16]}"
     api_key = None
     client_ip = _get_client_ip(raw_request)
 
@@ -105,17 +108,23 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
         api_key = await _verify_api_key(raw_request)
 
         # 优先从请求头获取 conversation_id
-        conv_id = raw_request.headers.get("X-Conversation-ID") or request.conversation_id
+        conv_id = (
+            raw_request.headers.get("X-Conversation-ID")
+            or request.conversation_id
+            or ""
+        ).strip() or None
 
-        logger.info(f"[ChatAPI] 收到请求: model={request.model}, stream={request.stream}, conv_id={conv_id}, ip={client_ip}")
+        logger.info(
+            f"[ChatAPI] 收到请求: model={request.model}, stream={request.stream}, conv_id={conv_id}, ip={client_ip}"
+        )
 
         # 调用 Grok 客户端
-        result, openai_conv_id, grok_conv_id, grok_resp_id = await GrokClient.chat(
+        result, openai_conv_id, _, _ = await GrokClient.chat(
             messages=[msg.model_dump() for msg in request.messages],
             model=request.model,
             stream=request.stream,
             conversation_id=conv_id,
-            thinking=request.thinking
+            thinking=request.thinking,
         )
 
         if request.stream:
@@ -134,10 +143,10 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                             ChatCompletionChunkChoice(
                                 index=0,
                                 delta=ChatCompletionChunkDelta(role="assistant"),
-                                finish_reason=None
+                                finish_reason=None,
                             )
                         ],
-                        conversation_id=openai_conv_id
+                        conversation_id=openai_conv_id,
                     )
                     yield f"data: {first_chunk.model_dump_json()}\n\n"
 
@@ -151,9 +160,9 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                                 ChatCompletionChunkChoice(
                                     index=0,
                                     delta=ChatCompletionChunkDelta(content=text),
-                                    finish_reason=None
+                                    finish_reason=None,
                                 )
-                            ]
+                            ],
                         )
                         yield f"data: {chunk.model_dump_json()}\n\n"
 
@@ -166,9 +175,9 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                             ChatCompletionChunkChoice(
                                 index=0,
                                 delta=ChatCompletionChunkDelta(),
-                                finish_reason="stop"
+                                finish_reason="stop",
                             )
-                        ]
+                        ],
                     )
                     yield f"data: {end_chunk.model_dump_json()}\n\n"
                     yield "data: [DONE]\n\n"
@@ -184,7 +193,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                         error=None,
                         duration_ms=duration_ms,
                         ip=client_ip,
-                        stream=True
+                        stream=True,
                     )
 
                 except Exception as e:
@@ -201,7 +210,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                         error=str(e),
                         duration_ms=duration_ms,
                         ip=client_ip,
-                        stream=True
+                        stream=True,
                     )
 
                     error_chunk = ChatCompletionChunk(
@@ -211,22 +220,29 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                         choices=[
                             ChatCompletionChunkChoice(
                                 index=0,
-                                delta=ChatCompletionChunkDelta(content=f"Error: {str(e)}"),
-                                finish_reason="error"
+                                delta=ChatCompletionChunkDelta(
+                                    content=f"Error: {str(e)}"
+                                ),
+                                finish_reason="error",
                             )
-                        ]
+                        ],
                     )
                     yield f"data: {error_chunk.model_dump_json()}\n\n"
                     yield "data: [DONE]\n\n"
 
+            response_headers = {
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+                "X-Request-ID": request_id,
+            }
+            if openai_conv_id:
+                response_headers["X-Conversation-ID"] = openai_conv_id
+
             return StreamingResponse(
                 stream_wrapper(),
                 media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no"
-                }
+                headers=response_headers,
             )
         else:
             # 非流式响应
@@ -240,13 +256,12 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                     ChatCompletionResponseChoice(
                         index=0,
                         message=ChatCompletionResponseMessage(
-                            role="assistant",
-                            content=result
+                            role="assistant", content=result
                         ),
-                        finish_reason="stop"
+                        finish_reason="stop",
                     )
                 ],
-                conversation_id=openai_conv_id
+                conversation_id=openai_conv_id,
             )
 
             # 记录统计和日志
@@ -259,15 +274,21 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 error=None,
                 duration_ms=duration_ms,
                 ip=client_ip,
-                stream=False
+                stream=False,
             )
 
-            logger.info(f"[ChatAPI] 响应成功: conv_id={openai_conv_id}, duration={duration_ms}ms")
+            raw_response.headers["X-Request-ID"] = request_id
+            if openai_conv_id:
+                raw_response.headers["X-Conversation-ID"] = openai_conv_id
+            logger.info(
+                f"[ChatAPI] 响应成功: conv_id={openai_conv_id}, duration={duration_ms}ms"
+            )
             return response
 
-    except HTTPException:
+    except HTTPException as e:
         # 认证错误直接抛出，不记录为请求失败
-        raise
+        e.headers = {**(e.headers or {}), "X-Request-ID": request_id}
+        raise e
     except Exception as e:
         duration_ms = int((time.time() - start_time) * 1000)
         logger.error(f"[ChatAPI] 请求失败: {e}")
@@ -282,7 +303,7 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
             error=str(e),
             duration_ms=duration_ms,
             ip=client_ip,
-            stream=request.stream
+            stream=request.stream,
         )
 
         raise HTTPException(
@@ -291,14 +312,18 @@ async def chat_completions(request: ChatCompletionRequest, raw_request: Request)
                 "error": {
                     "message": str(e),
                     "type": "internal_error",
-                    "code": "internal_server_error"
+                    "code": "internal_server_error",
+                    "request_id": request_id,
                 }
-            }
+            },
+            headers={"X-Request-ID": request_id},
         )
 
 
 @router.post("/responses")
-async def create_response(request: ResponseRequest, raw_request: Request):
+async def create_response(
+    request: ResponseRequest, raw_request: Request, raw_response: Response
+):
     """
     继续对话接口 - 真实上下文，不拼接历史
 
@@ -308,6 +333,7 @@ async def create_response(request: ResponseRequest, raw_request: Request):
     - 更高效，符合真实多轮对话设计
     """
     start_time = time.time()
+    request_id = f"req-{uuid.uuid4().hex[:16]}"
     api_key = None
     client_ip = _get_client_ip(raw_request)
 
@@ -315,20 +341,38 @@ async def create_response(request: ResponseRequest, raw_request: Request):
         # 验证 API Key
         api_key = await _verify_api_key(raw_request)
 
-        logger.info(f"[ResponseAPI] 收到请求: conv_id={request.conversation_id}, stream={request.stream}, ip={client_ip}")
+        logger.info(
+            f"[ResponseAPI] 收到请求: conv_id={request.conversation_id}, stream={request.stream}, ip={client_ip}"
+        )
+
+        conv_id = (
+            raw_request.headers.get("X-Conversation-ID")
+            or request.conversation_id
+            or ""
+        ).strip()
+        if not conv_id:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "message": "缺少 conversation_id，请在请求体或 X-Conversation-ID 请求头中提供",
+                        "type": "invalid_request_error",
+                        "code": "missing_conversation_id",
+                        "request_id": request_id,
+                    }
+                },
+                headers={"X-Request-ID": request_id},
+            )
 
         # 构造消息格式（只包含当前新消息）
-        if isinstance(request.message, str):
-            messages = [{"role": "user", "content": request.message}]
-        else:
-            messages = [{"role": "user", "content": request.message}]
+        messages = [{"role": "user", "content": request.message}]
 
         # 调用 Grok 客户端（强制使用 conversation_id）
-        result, openai_conv_id, grok_conv_id, grok_resp_id = await GrokClient.chat(
+        result, openai_conv_id, _, _ = await GrokClient.chat(
             messages=messages,
             model=request.model,
             stream=request.stream,
-            conversation_id=request.conversation_id
+            conversation_id=conv_id,
         )
 
         if request.stream:
@@ -347,10 +391,10 @@ async def create_response(request: ResponseRequest, raw_request: Request):
                             ChatCompletionChunkChoice(
                                 index=0,
                                 delta=ChatCompletionChunkDelta(role="assistant"),
-                                finish_reason=None
+                                finish_reason=None,
                             )
                         ],
-                        conversation_id=openai_conv_id
+                        conversation_id=openai_conv_id,
                     )
                     yield f"data: {first_chunk.model_dump_json()}\n\n"
 
@@ -364,9 +408,9 @@ async def create_response(request: ResponseRequest, raw_request: Request):
                                 ChatCompletionChunkChoice(
                                     index=0,
                                     delta=ChatCompletionChunkDelta(content=text),
-                                    finish_reason=None
+                                    finish_reason=None,
                                 )
-                            ]
+                            ],
                         )
                         yield f"data: {chunk.model_dump_json()}\n\n"
 
@@ -379,9 +423,9 @@ async def create_response(request: ResponseRequest, raw_request: Request):
                             ChatCompletionChunkChoice(
                                 index=0,
                                 delta=ChatCompletionChunkDelta(),
-                                finish_reason="stop"
+                                finish_reason="stop",
                             )
-                        ]
+                        ],
                     )
                     yield f"data: {end_chunk.model_dump_json()}\n\n"
                     yield "data: [DONE]\n\n"
@@ -397,7 +441,7 @@ async def create_response(request: ResponseRequest, raw_request: Request):
                         error=None,
                         duration_ms=duration_ms,
                         ip=client_ip,
-                        stream=True
+                        stream=True,
                     )
 
                 except Exception as e:
@@ -412,7 +456,7 @@ async def create_response(request: ResponseRequest, raw_request: Request):
                         error=str(e),
                         duration_ms=duration_ms,
                         ip=client_ip,
-                        stream=True
+                        stream=True,
                     )
 
                     error_chunk = ChatCompletionChunk(
@@ -422,22 +466,29 @@ async def create_response(request: ResponseRequest, raw_request: Request):
                         choices=[
                             ChatCompletionChunkChoice(
                                 index=0,
-                                delta=ChatCompletionChunkDelta(content=f"Error: {str(e)}"),
-                                finish_reason="error"
+                                delta=ChatCompletionChunkDelta(
+                                    content=f"Error: {str(e)}"
+                                ),
+                                finish_reason="error",
                             )
-                        ]
+                        ],
                     )
                     yield f"data: {error_chunk.model_dump_json()}\n\n"
                     yield "data: [DONE]\n\n"
 
+            response_headers = {
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+                "X-Request-ID": request_id,
+            }
+            if openai_conv_id:
+                response_headers["X-Conversation-ID"] = openai_conv_id
+
             return StreamingResponse(
                 stream_wrapper(),
                 media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no"
-                }
+                headers=response_headers,
             )
         else:
             # 非流式响应
@@ -448,7 +499,7 @@ async def create_response(request: ResponseRequest, raw_request: Request):
                 created=int(time.time()),
                 model=request.model,
                 conversation_id=openai_conv_id,
-                message=result
+                message=result,
             )
 
             # 记录统计
@@ -461,14 +512,21 @@ async def create_response(request: ResponseRequest, raw_request: Request):
                 error=None,
                 duration_ms=duration_ms,
                 ip=client_ip,
-                stream=False
+                stream=False,
             )
 
-            logger.info(f"[ResponseAPI] 响应成功: conv_id={openai_conv_id}, duration={duration_ms}ms")
+            raw_response.headers["X-Request-ID"] = request_id
+            if openai_conv_id:
+                raw_response.headers["X-Conversation-ID"] = openai_conv_id
+
+            logger.info(
+                f"[ResponseAPI] 响应成功: conv_id={openai_conv_id}, duration={duration_ms}ms"
+            )
             return response
 
-    except HTTPException:
-        raise
+    except HTTPException as e:
+        e.headers = {**(e.headers or {}), "X-Request-ID": request_id}
+        raise e
     except Exception as e:
         duration_ms = int((time.time() - start_time) * 1000)
         logger.error(f"[ResponseAPI] 请求失败: {e}")
@@ -482,7 +540,7 @@ async def create_response(request: ResponseRequest, raw_request: Request):
             error=str(e),
             duration_ms=duration_ms,
             ip=client_ip,
-            stream=request.stream
+            stream=request.stream,
         )
 
         raise HTTPException(
@@ -491,7 +549,9 @@ async def create_response(request: ResponseRequest, raw_request: Request):
                 "error": {
                     "message": str(e),
                     "type": "internal_error",
-                    "code": "internal_server_error"
+                    "code": "internal_server_error",
+                    "request_id": request_id,
                 }
-            }
+            },
+            headers={"X-Request-ID": request_id},
         )

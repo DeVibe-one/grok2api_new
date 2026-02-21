@@ -25,6 +25,7 @@ FILTER_TAGS = ["xaiartifact", "grok:render"]
 
 class GrokAPIError(Exception):
     """Grok API 错误"""
+
     def __init__(self, status_code: int, message: str, has_quota: bool = True):
         self.status_code = status_code
         self.message = message
@@ -37,9 +38,15 @@ class GrokClient:
 
     # API 端点
     NEW_CONVERSATION_URL = f"{settings.grok_api_endpoint}/conversations/new"
-    CONTINUE_CONVERSATION_URL = f"{settings.grok_api_endpoint}/conversations/{{conversation_id}}/responses"
-    SHARE_CONVERSATION_URL = f"{settings.grok_api_endpoint}/conversations/{{conversation_id}}/share"
-    CLONE_SHARE_LINK_URL = f"{settings.grok_api_endpoint}/share_links/{{share_link_id}}/clone"
+    CONTINUE_CONVERSATION_URL = (
+        f"{settings.grok_api_endpoint}/conversations/{{conversation_id}}/responses"
+    )
+    SHARE_CONVERSATION_URL = (
+        f"{settings.grok_api_endpoint}/conversations/{{conversation_id}}/share"
+    )
+    CLONE_SHARE_LINK_URL = (
+        f"{settings.grok_api_endpoint}/share_links/{{share_link_id}}/clone"
+    )
 
     @staticmethod
     async def chat(
@@ -48,7 +55,7 @@ class GrokClient:
         stream: bool = False,
         conversation_id: Optional[str] = None,
         thinking: Optional[bool] = None,
-        **kwargs
+        **kwargs,
     ) -> Tuple[Any, Optional[str], Optional[str], Optional[str]]:
         """
         发送聊天请求
@@ -70,14 +77,22 @@ class GrokClient:
 
         # 如果没有提供 conversation_id，尝试通过消息历史自动识别
         if not context and len(messages) > 1:
-            auto_conv_id = await conversation_manager.find_conversation_by_history(messages)
+            auto_conv_id = await conversation_manager.find_conversation_by_history(
+                messages
+            )
             if auto_conv_id:
                 context = await conversation_manager.get_conversation(auto_conv_id)
                 conversation_id = auto_conv_id
                 logger.info(f"[GrokClient] 自动识别到会话: {conversation_id}")
 
+        # 流式新对话提前分配会话 ID，便于客户端立即续接
+        if stream and not context and not conversation_id:
+            conversation_id = f"conv-{uuid.uuid4().hex[:24]}"
+
         # 提取消息内容和图片
-        message_text, image_urls = GrokClient._extract_message_content(messages, is_continue=bool(context))
+        message_text, image_urls = GrokClient._extract_message_content(
+            messages, is_continue=bool(context)
+        )
 
         # 用于跟踪已尝试的 Token
         used_tokens: Set[str] = set()
@@ -89,11 +104,15 @@ class GrokClient:
             token = await token_manager.get_token(exclude=used_tokens)
             if not token:
                 if used_tokens:
-                    raise Exception(f"已尝试 {len(used_tokens)} 个 Token 均失败，没有更多可用的 Token")
+                    raise Exception(
+                        f"已尝试 {len(used_tokens)} 个 Token 均失败，没有更多可用的 Token"
+                    )
                 raise Exception("没有可用的 Token")
 
             used_tokens.add(token)
-            logger.info(f"[GrokClient] 尝试第 {attempt + 1}/{MAX_RETRY_TOKENS} 个 Token")
+            logger.info(
+                f"[GrokClient] 尝试第 {attempt + 1}/{MAX_RETRY_TOKENS} 个 Token"
+            )
 
             try:
                 result = await GrokClient._do_chat_request(
@@ -105,7 +124,7 @@ class GrokClient:
                     conversation_id=conversation_id,
                     context=context,
                     messages=messages,
-                    thinking=thinking
+                    thinking=thinking,
                 )
                 # 成功，记录并返回
                 await token_manager.record_success(token)
@@ -113,11 +132,15 @@ class GrokClient:
 
             except GrokAPIError as e:
                 last_error = e
-                logger.warning(f"[GrokClient] Token 请求失败 (尝试 {attempt + 1}): {e.message}")
+                logger.warning(
+                    f"[GrokClient] Token 请求失败 (尝试 {attempt + 1}): {e.message}"
+                )
 
                 # 根据状态码记录失败
                 if e.status_code == 429:
-                    await token_manager.record_failure(token, "429", has_quota=e.has_quota)
+                    await token_manager.record_failure(
+                        token, "429", has_quota=e.has_quota
+                    )
                 elif e.status_code == 401:
                     await token_manager.record_failure(token, "auth")
                 else:
@@ -129,7 +152,9 @@ class GrokClient:
             except Exception as e:
                 last_error = e
                 error_str = str(e)
-                logger.warning(f"[GrokClient] Token 请求失败 (尝试 {attempt + 1}): {error_str}")
+                logger.warning(
+                    f"[GrokClient] Token 请求失败 (尝试 {attempt + 1}): {error_str}"
+                )
 
                 # 记录普通错误
                 await token_manager.record_failure(token, "normal")
@@ -150,13 +175,15 @@ class GrokClient:
         conversation_id: Optional[str],
         context: Optional[Any],
         messages: List[Dict[str, Any]] = None,
-        thinking: Optional[bool] = None
+        thinking: Optional[bool] = None,
     ) -> Tuple[Any, Optional[str], Optional[str], Optional[str]]:
         """执行实际的聊天请求（内部方法）"""
         # 解析模型名称 → (grok内部名, modelMode, 规范名)
         grok_model, model_mode, resolved_model = resolve_model(model)
         if resolved_model != model:
-            logger.info(f"[GrokClient] 模型映射: {model} -> {grok_model} (mode={model_mode})")
+            logger.info(
+                f"[GrokClient] 模型映射: {model} -> {grok_model} (mode={model_mode})"
+            )
 
         # 思考过程：由全局配置控制是否展示
         show_thinking = settings.show_thinking
@@ -173,15 +200,21 @@ class GrokClient:
                 file_id, file_uri = await ImageUploadManager.upload(img_url, token)
                 if file_id:
                     file_ids.append(file_id)
-            logger.info(f"[GrokClient] 图片上传完成，成功 {len(file_ids)}/{len(image_urls)}")
+            logger.info(
+                f"[GrokClient] 图片上传完成，成功 {len(file_ids)}/{len(image_urls)}"
+            )
 
         # 构建请求
         if context:
             # 继续对话 - 检查是否需要跨账号克隆
             if token != context.token:
                 if context.share_link_id:
-                    logger.info(f"[GrokClient] Token 不同，克隆会话: shareLinkId={context.share_link_id}")
-                    new_conv_id, new_resp_id = await GrokClient._clone_conversation(token, context.share_link_id)
+                    logger.info(
+                        f"[GrokClient] Token 不同，克隆会话: shareLinkId={context.share_link_id}"
+                    )
+                    new_conv_id, new_resp_id = await GrokClient._clone_conversation(
+                        token, context.share_link_id
+                    )
                     if new_conv_id and new_resp_id:
                         # 更新 context 为克隆后的会话
                         context.conversation_id = new_conv_id
@@ -191,11 +224,17 @@ class GrokClient:
                     else:
                         logger.warning("[GrokClient] 克隆失败，降级为新对话")
                         # 重新提取完整消息（包含所有历史）
-                        message_text, _ = GrokClient._extract_message_content(messages, is_continue=False)
+                        message_text, _ = GrokClient._extract_message_content(
+                            messages, is_continue=False
+                        )
                         context = None
                 else:
-                    logger.warning("[GrokClient] Token 不同但无 share_link_id，降级为新对话")
-                    message_text, _ = GrokClient._extract_message_content(messages, is_continue=False)
+                    logger.warning(
+                        "[GrokClient] Token 不同但无 share_link_id，降级为新对话"
+                    )
+                    message_text, _ = GrokClient._extract_message_content(
+                        messages, is_continue=False
+                    )
                     context = None
 
         if context:
@@ -209,26 +248,38 @@ class GrokClient:
                 model_mode,
                 context.last_response_id,
                 file_ids,
-                is_think_harder
+                is_think_harder,
             )
-            logger.info(f"[GrokClient] 继续对话: {conversation_id} -> {context.conversation_id}, 只发送新消息")
+            logger.info(
+                f"[GrokClient] 继续对话: {conversation_id} -> {context.conversation_id}, 只发送新消息"
+            )
 
             # 重要：继续对话时必须使用流式响应，因为非流式不返回 AI 回复
             force_stream = True
         else:
             # 新对话 - message_text 包含所有初始消息
             url = GrokClient.NEW_CONVERSATION_URL
-            payload = GrokClient._build_new_payload(message_text, grok_model, model_mode, file_ids, is_think_harder)
+            payload = GrokClient._build_new_payload(
+                message_text, grok_model, model_mode, file_ids, is_think_harder
+            )
             logger.info(f"[GrokClient] 创建新对话")
             force_stream = False
 
         # 构建请求头
-        pathname = url.split("/rest/app-chat")[-1] if "/rest/app-chat" in url else "/rest/app-chat/conversations/new"
+        pathname = (
+            url.split("/rest/app-chat")[-1]
+            if "/rest/app-chat" in url
+            else "/rest/app-chat/conversations/new"
+        )
         headers = GrokClient._build_headers(token, pathname)
 
         # 发送请求
         session = AsyncSession(impersonate="chrome120")
-        proxies = {"http": settings.proxy_url, "https": settings.proxy_url} if settings.proxy_url else None
+        proxies = (
+            {"http": settings.proxy_url, "https": settings.proxy_url}
+            if settings.proxy_url
+            else None
+        )
 
         response = await session.post(
             url,
@@ -236,13 +287,15 @@ class GrokClient:
             data=orjson.dumps(payload),
             timeout=settings.stream_timeout,
             stream=True,
-            proxies=proxies
+            proxies=proxies,
         )
 
         if response.status_code != 200:
             error_text = await response.atext()
             await session.close()
-            logger.error(f"[GrokClient] 请求失败: {response.status_code} - {error_text[:200]}")
+            logger.error(
+                f"[GrokClient] 请求失败: {response.status_code} - {error_text[:200]}"
+            )
 
             # 检测是否有额度（429 时解析响应）
             has_quota = True
@@ -250,9 +303,17 @@ class GrokClient:
                 try:
                     # 尝试解析响应判断额度
                     error_lower = error_text.lower()
-                    if "quota" in error_lower or "limit" in error_lower or "exceeded" in error_lower:
+                    if (
+                        "quota" in error_lower
+                        or "limit" in error_lower
+                        or "exceeded" in error_lower
+                    ):
                         # 检查是否明确说无额度
-                        if "no quota" in error_lower or "quota exceeded" in error_lower or "0 remaining" in error_lower:
+                        if (
+                            "no quota" in error_lower
+                            or "quota exceeded" in error_lower
+                            or "0 remaining" in error_lower
+                        ):
                             has_quota = False
                 except Exception:
                     pass
@@ -262,26 +323,39 @@ class GrokClient:
         # 处理响应
         if stream:
             # 用户请求流式响应
-            result = await GrokClient._process_stream(response, session, token, conversation_id, context, messages, show_thinking)
+            result = await GrokClient._process_stream(
+                response,
+                session,
+                token,
+                conversation_id,
+                context,
+                messages,
+                show_thinking,
+            )
             return result, conversation_id, None, None
         elif force_stream:
             # 继续对话时强制使用流式，然后转换为非流式
             logger.info(f"[GrokClient] 继续对话强制使用流式响应")
-            content, grok_resp_id = await GrokClient._collect_stream_to_text(response, session, token, show_thinking)
+            content, grok_resp_id = await GrokClient._collect_stream_to_text(
+                response, session, token, show_thinking
+            )
 
             # 分享会话（用于下次跨账号继续）
             grok_conv_id = context.conversation_id
             share_link_id = None
             if grok_resp_id:
-                share_link_id = await GrokClient._share_conversation(token, grok_conv_id, grok_resp_id)
+                share_link_id = await GrokClient._share_conversation(
+                    token, grok_conv_id, grok_resp_id
+                )
 
             # 更新会话
             if grok_resp_id:
                 await conversation_manager.update_conversation(
-                    conversation_id, grok_resp_id,
+                    conversation_id,
+                    grok_resp_id,
                     share_link_id=share_link_id,
                     grok_conversation_id=grok_conv_id,
-                    token=token
+                    token=token,
                 )
 
             return content, conversation_id, grok_conv_id, grok_resp_id
@@ -294,7 +368,12 @@ class GrokClient:
             # 分享会话（用于下次跨账号继续）
             share_link_id = ""
             if grok_conv_id and grok_resp_id:
-                share_link_id = await GrokClient._share_conversation(token, grok_conv_id, grok_resp_id) or ""
+                share_link_id = (
+                    await GrokClient._share_conversation(
+                        token, grok_conv_id, grok_resp_id
+                    )
+                    or ""
+                )
 
             # 创建新会话
             openai_conv_id = await conversation_manager.create_conversation(
@@ -304,7 +383,9 @@ class GrokClient:
             return result, openai_conv_id, grok_conv_id, grok_resp_id
 
     @staticmethod
-    def _extract_message_content(messages: List[Dict[str, Any]], is_continue: bool = False) -> Tuple[str, List[str]]:
+    def _extract_message_content(
+        messages: List[Dict[str, Any]], is_continue: bool = False
+    ) -> Tuple[str, List[str]]:
         """提取消息文本和图片 - 真实上下文，不拼接历史
 
         Args:
@@ -342,7 +423,9 @@ class GrokClient:
             parts = []
 
             # 判断是否有多轮对话（user/assistant 消息超过1条时加角色标记）
-            user_assistant_count = sum(1 for m in messages if m.get("role") in ("user", "assistant"))
+            user_assistant_count = sum(
+                1 for m in messages if m.get("role") in ("user", "assistant")
+            )
             has_multi_turn = user_assistant_count > 1
 
             for msg in messages:
@@ -364,7 +447,11 @@ class GrokClient:
                 if content:
                     if has_multi_turn:
                         # 多轮对话加角色标记，让 AI 理解对话结构
-                        role_label = {"system": "[System]", "user": "[User]", "assistant": "[Assistant]"}.get(role, "[User]")
+                        role_label = {
+                            "system": "[System]",
+                            "user": "[User]",
+                            "assistant": "[Assistant]",
+                        }.get(role, "[User]")
                         parts.append(f"{role_label}\n{content}")
                     else:
                         parts.append(content)
@@ -372,7 +459,13 @@ class GrokClient:
             return "\n\n".join(parts), images
 
     @staticmethod
-    def _build_new_payload(message: str, grok_model: str, model_mode: str, file_ids: List[str] = None, is_think_harder: bool = False) -> Dict:
+    def _build_new_payload(
+        message: str,
+        grok_model: str,
+        model_mode: str,
+        file_ids: List[str] = None,
+        is_think_harder: bool = False,
+    ) -> Dict:
         """构建新对话的请求载荷"""
         return {
             "temporary": True,
@@ -406,14 +499,25 @@ class GrokClient:
         }
 
     @staticmethod
-    def _build_continue_payload(message: str, grok_model: str, model_mode: str, parent_response_id: str, file_ids: List[str] = None, is_think_harder: bool = False) -> Dict:
+    def _build_continue_payload(
+        message: str,
+        grok_model: str,
+        model_mode: str,
+        parent_response_id: str,
+        file_ids: List[str] = None,
+        is_think_harder: bool = False,
+    ) -> Dict:
         """构建继续对话的请求载荷"""
-        payload = GrokClient._build_new_payload(message, grok_model, model_mode, file_ids, is_think_harder)
+        payload = GrokClient._build_new_payload(
+            message, grok_model, model_mode, file_ids, is_think_harder
+        )
         payload["parentResponseId"] = parent_response_id
         return payload
 
     @staticmethod
-    def _build_headers(token: str, pathname: str = "/rest/app-chat/conversations/new") -> Dict[str, str]:
+    def _build_headers(
+        token: str, pathname: str = "/rest/app-chat/conversations/new"
+    ) -> Dict[str, str]:
         """构建请求头"""
         # 获取动态请求头
         headers = get_dynamic_headers(pathname)
@@ -426,7 +530,9 @@ class GrokClient:
         return headers
 
     @staticmethod
-    async def _share_conversation(token: str, conversation_id: str, response_id: str) -> Optional[str]:
+    async def _share_conversation(
+        token: str, conversation_id: str, response_id: str
+    ) -> Optional[str]:
         """分享会话，获取 shareLinkId（用于跨账号克隆）
 
         Args:
@@ -445,7 +551,11 @@ class GrokClient:
         headers = GrokClient._build_headers(token, pathname)
         payload = {"responseId": response_id, "allowIndexing": True}
 
-        proxies = {"http": settings.proxy_url, "https": settings.proxy_url} if settings.proxy_url else None
+        proxies = (
+            {"http": settings.proxy_url, "https": settings.proxy_url}
+            if settings.proxy_url
+            else None
+        )
 
         try:
             async with AsyncSession(impersonate="chrome120") as session:
@@ -454,24 +564,30 @@ class GrokClient:
                     headers=headers,
                     data=orjson.dumps(payload),
                     timeout=30,
-                    proxies=proxies
+                    proxies=proxies,
                 )
 
                 if response.status_code == 200:
                     data = orjson.loads(response.content)
                     share_link_id = data.get("shareLinkId")
-                    logger.info(f"[GrokClient] 会话已分享: conv={conversation_id}, shareLinkId={share_link_id}")
+                    logger.info(
+                        f"[GrokClient] 会话已分享: conv={conversation_id}, shareLinkId={share_link_id}"
+                    )
                     return share_link_id
                 else:
                     error_text = response.text
-                    logger.warning(f"[GrokClient] 分享会话失败: {response.status_code} - {error_text[:200]}")
+                    logger.warning(
+                        f"[GrokClient] 分享会话失败: {response.status_code} - {error_text[:200]}"
+                    )
                     return None
         except Exception as e:
             logger.error(f"[GrokClient] 分享会话异常: {e}")
             return None
 
     @staticmethod
-    async def _clone_conversation(token: str, share_link_id: str) -> Tuple[Optional[str], Optional[str]]:
+    async def _clone_conversation(
+        token: str, share_link_id: str
+    ) -> Tuple[Optional[str], Optional[str]]:
         """克隆分享的会话到当前账号
 
         Args:
@@ -488,7 +604,11 @@ class GrokClient:
         pathname = f"/rest/app-chat/share_links/{share_link_id}/clone"
         headers = GrokClient._build_headers(token, pathname)
 
-        proxies = {"http": settings.proxy_url, "https": settings.proxy_url} if settings.proxy_url else None
+        proxies = (
+            {"http": settings.proxy_url, "https": settings.proxy_url}
+            if settings.proxy_url
+            else None
+        )
 
         try:
             async with AsyncSession(impersonate="chrome120") as session:
@@ -497,7 +617,7 @@ class GrokClient:
                     headers=headers,
                     data=orjson.dumps({}),
                     timeout=30,
-                    proxies=proxies
+                    proxies=proxies,
                 )
 
                 if response.status_code == 200:
@@ -520,11 +640,15 @@ class GrokClient:
                     if not last_resp_id and responses:
                         last_resp_id = responses[-1].get("responseId")
 
-                    logger.info(f"[GrokClient] 会话已克隆: newConv={new_conv_id}, lastRespId={last_resp_id}")
+                    logger.info(
+                        f"[GrokClient] 会话已克隆: newConv={new_conv_id}, lastRespId={last_resp_id}"
+                    )
                     return new_conv_id, last_resp_id
                 else:
                     error_text = response.text
-                    logger.warning(f"[GrokClient] 克隆会话失败: {response.status_code} - {error_text[:200]}")
+                    logger.warning(
+                        f"[GrokClient] 克隆会话失败: {response.status_code} - {error_text[:200]}"
+                    )
                     return None, None
         except Exception as e:
             logger.error(f"[GrokClient] 克隆会话异常: {e}")
@@ -541,7 +665,9 @@ class GrokClient:
         return content
 
     @staticmethod
-    async def _process_normal(response, session, token: str, is_continue: bool = False) -> Tuple[str, str, str]:
+    async def _process_normal(
+        response, session, token: str, is_continue: bool = False
+    ) -> Tuple[str, str, str]:
         """处理非流式响应
 
         Args:
@@ -558,8 +684,10 @@ class GrokClient:
             logger.debug(f"[GrokClient] 完整响应前500字符: {full_text[:500]}")
 
             # 按行分割处理
-            lines = full_text.strip().split('\n')
-            logger.debug(f"[GrokClient] 响应行数: {len(lines)}, 是否继续对话: {is_continue}")
+            lines = full_text.strip().split("\n")
+            logger.debug(
+                f"[GrokClient] 响应行数: {len(lines)}, 是否继续对话: {is_continue}"
+            )
 
             for line in lines:
                 line = line.strip()
@@ -583,7 +711,9 @@ class GrokClient:
                             if images := model_resp_direct.get("generatedImageUrls"):
                                 if images:
                                     generated_images.extend(images)
-                                    logger.info(f"[GrokClient] 从 result.modelResponse 检测到 {len(images)} 张图片")
+                                    logger.info(
+                                        f"[GrokClient] 从 result.modelResponse 检测到 {len(images)} 张图片"
+                                    )
                             if msg := model_resp_direct.get("message"):
                                 content = msg
 
@@ -603,17 +733,23 @@ class GrokClient:
                                 if model_resp := response_data.get("modelResponse"):
                                     if resp_id := model_resp.get("responseId"):
                                         grok_response_id = resp_id
-                                        logger.info(f"[GrokClient] 提取到响应ID: {resp_id}")
+                                        logger.info(
+                                            f"[GrokClient] 提取到响应ID: {resp_id}"
+                                        )
 
                                     if msg := model_resp.get("message"):
                                         content = msg
-                                        logger.debug(f"[GrokClient] 提取到内容: {msg[:100] if msg else ''}")
+                                        logger.debug(
+                                            f"[GrokClient] 提取到内容: {msg[:100] if msg else ''}"
+                                        )
 
                                     # 提取生成的图片
                                     if images := model_resp.get("generatedImageUrls"):
                                         if images:
                                             generated_images.extend(images)
-                                            logger.info(f"[GrokClient] 从 response.modelResponse 检测到 {len(images)} 张图片")
+                                            logger.info(
+                                                f"[GrokClient] 从 response.modelResponse 检测到 {len(images)} 张图片"
+                                            )
 
                                 # 从 token 累积内容
                                 if token_text := response_data.get("token"):
@@ -625,7 +761,9 @@ class GrokClient:
                             user_resp = result["userResponse"]
                             if resp_id := user_resp.get("responseId"):
                                 grok_response_id = resp_id
-                                logger.info(f"[GrokClient] 继续对话，提取到用户响应ID: {resp_id}")
+                                logger.info(
+                                    f"[GrokClient] 继续对话，提取到用户响应ID: {resp_id}"
+                                )
 
                 except Exception as e:
                     logger.debug(f"[GrokClient] 解析行失败: {e}, 数据: {line[:100]}")
@@ -634,16 +772,22 @@ class GrokClient:
             # 处理生成的图片 - 去重
             if generated_images:
                 generated_images = list(dict.fromkeys(generated_images))
-                content = await GrokClient._append_images(content, generated_images, token)
+                content = await GrokClient._append_images(
+                    content, generated_images, token
+                )
 
             # 过滤 Grok 内部 XML 标签
             content = GrokClient._filter_tags_regex(content)
 
             # 如果是继续对话且没有内容，说明需要等待 AI 回复
             if is_continue and not content:
-                logger.warning(f"[GrokClient] 继续对话返回空内容，可能需要使用流式响应或轮询")
+                logger.warning(
+                    f"[GrokClient] 继续对话返回空内容，可能需要使用流式响应或轮询"
+                )
 
-            logger.info(f"[GrokClient] 解析完成: conv_id={grok_conversation_id}, resp_id={grok_response_id}, content_len={len(content)}, images={len(generated_images)}")
+            logger.info(
+                f"[GrokClient] 解析完成: conv_id={grok_conversation_id}, resp_id={grok_response_id}, content_len={len(content)}, images={len(generated_images)}"
+            )
             return content, grok_conversation_id, grok_response_id
 
         finally:
@@ -657,9 +801,10 @@ class GrokClient:
         conversation_id: Optional[str],
         context: Optional[Any],
         messages: List[Dict[str, Any]] = None,
-        show_thinking: bool = False
+        show_thinking: bool = False,
     ) -> AsyncGenerator[str, None]:
         """处理流式响应"""
+
         async def stream_generator():
             try:
                 grok_conversation_id = context.conversation_id if context else None
@@ -711,7 +856,9 @@ class GrokClient:
                             remaining = token_text[i:]
                             tag_started = False
                             for tag in FILTER_TAGS:
-                                if remaining.startswith(f"<{tag}") or remaining.startswith(f"</{tag}"):
+                                if remaining.startswith(
+                                    f"<{tag}"
+                                ) or remaining.startswith(f"</{tag}"):
                                     tag_started = True
                                     break
 
@@ -723,12 +870,18 @@ class GrokClient:
                                         tag_started = True
                                         break
 
-                            if not tag_started and len(remaining) <= max(len(t) for t in FILTER_TAGS) + 2:
+                            if (
+                                not tag_started
+                                and len(remaining)
+                                <= max(len(t) for t in FILTER_TAGS) + 2
+                            ):
                                 # 检查是否是某个过滤标签的前缀
                                 for tag in FILTER_TAGS:
                                     open_tag = f"<{tag}"
                                     close_tag = f"</{tag}"
-                                    if open_tag.startswith(remaining) or close_tag.startswith(remaining):
+                                    if open_tag.startswith(
+                                        remaining
+                                    ) or close_tag.startswith(remaining):
                                         tag_started = True
                                         break
 
@@ -780,10 +933,14 @@ class GrokClient:
                             if model_resp_direct := result.get("modelResponse"):
                                 if resp_id := model_resp_direct.get("responseId"):
                                     grok_response_id = resp_id
-                                if images := model_resp_direct.get("generatedImageUrls"):
+                                if images := model_resp_direct.get(
+                                    "generatedImageUrls"
+                                ):
                                     if images:
                                         generated_images.extend(images)
-                                        logger.info(f"[GrokClient] 流式从 result.modelResponse 检测到 {len(images)} 张图片")
+                                        logger.info(
+                                            f"[GrokClient] 流式从 result.modelResponse 检测到 {len(images)} 张图片"
+                                        )
                                 # modelResponse 到达表示生成结束，关闭 think 标签
                                 if think_opened and show_thinking:
                                     if msg := model_resp_direct.get("message"):
@@ -806,7 +963,9 @@ class GrokClient:
                                     if images := model_resp.get("generatedImageUrls"):
                                         if images:
                                             generated_images.extend(images)
-                                            logger.info(f"[GrokClient] 流式从 response.modelResponse 检测到 {len(images)} 张图片: {images}")
+                                            logger.info(
+                                                f"[GrokClient] 流式从 response.modelResponse 检测到 {len(images)} 张图片: {images}"
+                                            )
                                     # modelResponse 到达，关闭 think 标签
                                     if think_opened and show_thinking:
                                         if msg := model_resp.get("message"):
@@ -825,21 +984,44 @@ class GrokClient:
                                     # 备用：token 在 result 顶层（继续对话时常见）
                                     if token_text is None:
                                         token_text = result.get("token")
-                                        is_thinking = result.get("isThinking", is_thinking)
+                                        is_thinking = result.get(
+                                            "isThinking", is_thinking
+                                        )
 
                                     # 工具调用过程：tool_usage_card 包含各种工具（搜索/代码/浏览/专家协商）
                                     if message_tag == "tool_usage_card":
-                                        if token_text and show_thinking and settings.show_search:
-                                            rollout_id = response_data.get("rolloutId", "")
-                                            prefix = f"[{rollout_id}] " if rollout_id else ""
+                                        if (
+                                            token_text
+                                            and show_thinking
+                                            and settings.show_search
+                                        ):
+                                            rollout_id = response_data.get(
+                                                "rolloutId", ""
+                                            )
+                                            prefix = (
+                                                f"[{rollout_id}] " if rollout_id else ""
+                                            )
                                             # 提取工具名和参数
-                                            tool_match = re.search(r'<xai:tool_name>(\w+)</xai:tool_name>', token_text)
-                                            tool_name = tool_match.group(1) if tool_match else ""
-                                            args_match = re.search(r'<!\[CDATA\[(.+?)\]\]>', token_text, re.DOTALL)
+                                            tool_match = re.search(
+                                                r"<xai:tool_name>(\w+)</xai:tool_name>",
+                                                token_text,
+                                            )
+                                            tool_name = (
+                                                tool_match.group(1)
+                                                if tool_match
+                                                else ""
+                                            )
+                                            args_match = re.search(
+                                                r"<!\[CDATA\[(.+?)\]\]>",
+                                                token_text,
+                                                re.DOTALL,
+                                            )
                                             tool_args = {}
                                             if args_match:
                                                 try:
-                                                    tool_args = json.loads(args_match.group(1))
+                                                    tool_args = json.loads(
+                                                        args_match.group(1)
+                                                    )
                                                 except:
                                                     pass
 
@@ -855,7 +1037,9 @@ class GrokClient:
                                                 code = tool_args.get("code", "")
                                                 if code:
                                                     # 只显示前两行代码预览
-                                                    lines_preview = code.strip().split('\n')[:2]
+                                                    lines_preview = code.strip().split(
+                                                        "\n"
+                                                    )[:2]
                                                     preview = lines_preview[0]
                                                     if len(lines_preview) > 1:
                                                         preview += " ..."
@@ -869,7 +1053,9 @@ class GrokClient:
                                                 msg = tool_args.get("message", "")
                                                 if msg:
                                                     # 截取前100字符
-                                                    short_msg = msg[:100] + ("..." if len(msg) > 100 else "")
+                                                    short_msg = msg[:100] + (
+                                                        "..." if len(msg) > 100 else ""
+                                                    )
                                                     yield f"{prefix}💬 → {to}: {short_msg}\n"
                                             else:
                                                 yield f"{prefix}🔧 {tool_name}\n"
@@ -878,13 +1064,21 @@ class GrokClient:
                                     # 工具执行结果：raw_function_result
                                     if message_tag == "raw_function_result":
                                         if show_thinking and settings.show_search:
-                                            rollout_id = response_data.get("rolloutId", "")
-                                            prefix = f"[{rollout_id}] " if rollout_id else ""
+                                            rollout_id = response_data.get(
+                                                "rolloutId", ""
+                                            )
+                                            prefix = (
+                                                f"[{rollout_id}] " if rollout_id else ""
+                                            )
 
                                             # 搜索结果
-                                            if web_results := response_data.get("webSearchResults"):
+                                            if web_results := response_data.get(
+                                                "webSearchResults"
+                                            ):
                                                 if isinstance(web_results, dict):
-                                                    results_list = web_results.get("results", [])
+                                                    results_list = web_results.get(
+                                                        "results", []
+                                                    )
                                                 elif isinstance(web_results, list):
                                                     results_list = web_results
                                                 else:
@@ -896,31 +1090,51 @@ class GrokClient:
                                                     yield f"{prefix}📄 找到 {len(results_list)} 条结果\n"
 
                                             # 代码执行结果
-                                            if code_result := response_data.get("codeExecutionResult"):
+                                            if code_result := response_data.get(
+                                                "codeExecutionResult"
+                                            ):
                                                 if not think_opened:
                                                     yield "<think>\n"
                                                     think_opened = True
-                                                exit_code = code_result.get("exitCode", -1)
+                                                exit_code = code_result.get(
+                                                    "exitCode", -1
+                                                )
                                                 if exit_code == 0:
-                                                    stdout = code_result.get("stdout", "").strip()
+                                                    stdout = code_result.get(
+                                                        "stdout", ""
+                                                    ).strip()
                                                     if stdout:
                                                         # 截取前200字符
-                                                        short_out = stdout[:200] + ("..." if len(stdout) > 200 else "")
+                                                        short_out = stdout[:200] + (
+                                                            "..."
+                                                            if len(stdout) > 200
+                                                            else ""
+                                                        )
                                                         yield f"{prefix}✅ 执行成功: {short_out}\n"
                                                     else:
                                                         yield f"{prefix}✅ 执行成功\n"
                                                 else:
-                                                    stderr = code_result.get("stderr", "").strip()
+                                                    stderr = code_result.get(
+                                                        "stderr", ""
+                                                    ).strip()
                                                     # 只取最后一行错误信息
-                                                    last_line = stderr.split('\n')[-1] if stderr else "未知错误"
+                                                    last_line = (
+                                                        stderr.split("\n")[-1]
+                                                        if stderr
+                                                        else "未知错误"
+                                                    )
                                                     yield f"{prefix}❌ 执行失败: {last_line}\n"
                                         continue
 
                                     # 搜索结果（无 messageTag 时的兼容路径）
-                                    if web_results := response_data.get("webSearchResults"):
+                                    if web_results := response_data.get(
+                                        "webSearchResults"
+                                    ):
                                         if show_thinking and settings.show_search:
                                             if isinstance(web_results, dict):
-                                                results_list = web_results.get("results", [])
+                                                results_list = web_results.get(
+                                                    "results", []
+                                                )
                                             elif isinstance(web_results, list):
                                                 results_list = web_results
                                             else:
@@ -995,31 +1209,43 @@ class GrokClient:
                     yield "\n</think>\n"
 
                 # 流式结束后处理图片 - 去重
-                logger.info(f"[GrokClient] 流式结束，收集到 {len(generated_images)} 张图片, is_image_mode={is_image_mode}")
+                logger.info(
+                    f"[GrokClient] 流式结束，收集到 {len(generated_images)} 张图片, is_image_mode={is_image_mode}"
+                )
                 if generated_images:
                     generated_images = list(dict.fromkeys(generated_images))
-                    image_content = await GrokClient._append_images("", generated_images, token)
+                    image_content = await GrokClient._append_images(
+                        "", generated_images, token
+                    )
                     if image_content:
                         yield image_content
 
                 # 流式结束后更新会话并分享
                 if grok_conversation_id and grok_response_id:
                     # 分享会话（用于下次跨账号继续）
-                    share_link_id = await GrokClient._share_conversation(token, grok_conversation_id, grok_response_id)
+                    share_link_id = await GrokClient._share_conversation(
+                        token, grok_conversation_id, grok_response_id
+                    )
 
                     if context:
                         # 更新现有会话
                         await conversation_manager.update_conversation(
-                            openai_conv_id, grok_response_id, messages,
+                            openai_conv_id,
+                            grok_response_id,
+                            messages,
                             share_link_id=share_link_id,
                             grok_conversation_id=grok_conversation_id,
-                            token=token
+                            token=token,
                         )
                     else:
                         # 创建新会话
                         await conversation_manager.create_conversation(
-                            token, grok_conversation_id, grok_response_id, messages,
-                            share_link_id=share_link_id or ""
+                            token,
+                            grok_conversation_id,
+                            grok_response_id,
+                            messages,
+                            share_link_id=share_link_id or "",
+                            openai_conversation_id=openai_conv_id,
                         )
 
             finally:
@@ -1028,7 +1254,9 @@ class GrokClient:
         return stream_generator()
 
     @staticmethod
-    async def _collect_stream_to_text(response, session, auth_token: str = "", show_thinking: bool = False):
+    async def _collect_stream_to_text(
+        response, session, auth_token: str = "", show_thinking: bool = False
+    ):
         """收集流式响应为完整文本"""
         try:
             content = ""
@@ -1052,7 +1280,9 @@ class GrokClient:
                             if show_thinking:
                                 idx = img.get("imageIndex", 0) + 1
                                 progress = img.get("progress", 0)
-                                thinking_content += f"正在生成第{idx}张图片中，当前进度{progress}%\n"
+                                thinking_content += (
+                                    f"正在生成第{idx}张图片中，当前进度{progress}%\n"
+                                )
                             continue
 
                         # 从 result.response 提取（主要路径）
@@ -1089,25 +1319,46 @@ class GrokClient:
                                 if message_tag == "tool_usage_card":
                                     if show_thinking and settings.show_search:
                                         if token_text := response_data.get("token"):
-                                            rollout_id = response_data.get("rolloutId", "")
-                                            prefix = f"[{rollout_id}] " if rollout_id else ""
-                                            tool_match = re.search(r'<xai:tool_name>(\w+)</xai:tool_name>', token_text)
-                                            tool_name = tool_match.group(1) if tool_match else ""
-                                            args_match = re.search(r'<!\[CDATA\[(.+?)\]\]>', token_text, re.DOTALL)
+                                            rollout_id = response_data.get(
+                                                "rolloutId", ""
+                                            )
+                                            prefix = (
+                                                f"[{rollout_id}] " if rollout_id else ""
+                                            )
+                                            tool_match = re.search(
+                                                r"<xai:tool_name>(\w+)</xai:tool_name>",
+                                                token_text,
+                                            )
+                                            tool_name = (
+                                                tool_match.group(1)
+                                                if tool_match
+                                                else ""
+                                            )
+                                            args_match = re.search(
+                                                r"<!\[CDATA\[(.+?)\]\]>",
+                                                token_text,
+                                                re.DOTALL,
+                                            )
                                             tool_args = {}
                                             if args_match:
                                                 try:
-                                                    tool_args = json.loads(args_match.group(1))
+                                                    tool_args = json.loads(
+                                                        args_match.group(1)
+                                                    )
                                                 except:
                                                     pass
                                             if tool_name == "web_search":
                                                 query = tool_args.get("query", "")
                                                 if query:
-                                                    thinking_content += f"{prefix}🔍 搜索: {query}\n"
+                                                    thinking_content += (
+                                                        f"{prefix}🔍 搜索: {query}\n"
+                                                    )
                                             elif tool_name == "code_execution":
                                                 code = tool_args.get("code", "")
                                                 if code:
-                                                    lines_preview = code.strip().split('\n')[:2]
+                                                    lines_preview = code.strip().split(
+                                                        "\n"
+                                                    )[:2]
                                                     preview = lines_preview[0]
                                                     if len(lines_preview) > 1:
                                                         preview += " ..."
@@ -1115,43 +1366,71 @@ class GrokClient:
                                             elif tool_name == "browse_page":
                                                 url = tool_args.get("url", "")
                                                 if url:
-                                                    thinking_content += f"{prefix}🌐 浏览: {url}\n"
+                                                    thinking_content += (
+                                                        f"{prefix}🌐 浏览: {url}\n"
+                                                    )
                                             elif tool_name == "chatroom_send":
                                                 to = tool_args.get("to", "")
                                                 msg = tool_args.get("message", "")
                                                 if msg:
-                                                    short_msg = msg[:100] + ("..." if len(msg) > 100 else "")
+                                                    short_msg = msg[:100] + (
+                                                        "..." if len(msg) > 100 else ""
+                                                    )
                                                     thinking_content += f"{prefix}💬 → {to}: {short_msg}\n"
                                             else:
-                                                thinking_content += f"{prefix}🔧 {tool_name}\n"
+                                                thinking_content += (
+                                                    f"{prefix}🔧 {tool_name}\n"
+                                                )
                                     continue
 
                                 # 工具执行结果
                                 if message_tag == "raw_function_result":
                                     if show_thinking and settings.show_search:
                                         rollout_id = response_data.get("rolloutId", "")
-                                        prefix = f"[{rollout_id}] " if rollout_id else ""
-                                        if web_results := response_data.get("webSearchResults"):
+                                        prefix = (
+                                            f"[{rollout_id}] " if rollout_id else ""
+                                        )
+                                        if web_results := response_data.get(
+                                            "webSearchResults"
+                                        ):
                                             if isinstance(web_results, dict):
-                                                results_list = web_results.get("results", [])
+                                                results_list = web_results.get(
+                                                    "results", []
+                                                )
                                             elif isinstance(web_results, list):
                                                 results_list = web_results
                                             else:
                                                 results_list = []
                                             if results_list:
                                                 thinking_content += f"{prefix}📄 找到 {len(results_list)} 条结果\n"
-                                        if code_result := response_data.get("codeExecutionResult"):
+                                        if code_result := response_data.get(
+                                            "codeExecutionResult"
+                                        ):
                                             exit_code = code_result.get("exitCode", -1)
                                             if exit_code == 0:
-                                                stdout = code_result.get("stdout", "").strip()
+                                                stdout = code_result.get(
+                                                    "stdout", ""
+                                                ).strip()
                                                 if stdout:
-                                                    short_out = stdout[:200] + ("..." if len(stdout) > 200 else "")
+                                                    short_out = stdout[:200] + (
+                                                        "..."
+                                                        if len(stdout) > 200
+                                                        else ""
+                                                    )
                                                     thinking_content += f"{prefix}✅ 执行成功: {short_out}\n"
                                                 else:
-                                                    thinking_content += f"{prefix}✅ 执行成功\n"
+                                                    thinking_content += (
+                                                        f"{prefix}✅ 执行成功\n"
+                                                    )
                                             else:
-                                                stderr = code_result.get("stderr", "").strip()
-                                                last_line = stderr.split('\n')[-1] if stderr else "未知错误"
+                                                stderr = code_result.get(
+                                                    "stderr", ""
+                                                ).strip()
+                                                last_line = (
+                                                    stderr.split("\n")[-1]
+                                                    if stderr
+                                                    else "未知错误"
+                                                )
                                                 thinking_content += f"{prefix}❌ 执行失败: {last_line}\n"
                                     continue
 
@@ -1159,13 +1438,17 @@ class GrokClient:
                                 if web_results := response_data.get("webSearchResults"):
                                     if show_thinking and settings.show_search:
                                         if isinstance(web_results, dict):
-                                            results_list = web_results.get("results", [])
+                                            results_list = web_results.get(
+                                                "results", []
+                                            )
                                         elif isinstance(web_results, list):
                                             results_list = web_results
                                         else:
                                             results_list = []
                                         if results_list:
-                                            thinking_content += f"📄 找到 {len(results_list)} 条结果\n"
+                                            thinking_content += (
+                                                f"📄 找到 {len(results_list)} 条结果\n"
+                                            )
                                     continue
 
                                 if token_text := response_data.get("token"):
@@ -1213,9 +1496,13 @@ class GrokClient:
             # 处理图片 - 去重
             if generated_images:
                 generated_images = list(dict.fromkeys(generated_images))
-                content = await GrokClient._append_images(content, generated_images, auth_token)
+                content = await GrokClient._append_images(
+                    content, generated_images, auth_token
+                )
 
-            logger.info(f"[GrokClient] 流式收集完成: resp_id={grok_response_id}, content_len={len(content)}, images={len(generated_images)}")
+            logger.info(
+                f"[GrokClient] 流式收集完成: resp_id={grok_response_id}, content_len={len(content)}, images={len(generated_images)}"
+            )
             return content, grok_response_id
 
         finally:
@@ -1232,8 +1519,12 @@ class GrokClient:
                 cache_path = await image_cache.download(f"/{img}", auth_token)
                 if cache_path:
                     # 转换路径格式：users/xxx/image.jpg -> users-xxx-image.jpg
-                    img_path = img.replace('/', '-')
-                    img_url = f"{base_url}/images/{img_path}" if base_url else f"/images/{img_path}"
+                    img_path = img.replace("/", "-")
+                    img_url = (
+                        f"{base_url}/images/{img_path}"
+                        if base_url
+                        else f"/images/{img_path}"
+                    )
                     content += f"\n\n![Generated Image]({img_url})"
                     logger.info(f"[GrokClient] 图片已缓存: {img_url}")
                 else:
