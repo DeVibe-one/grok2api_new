@@ -96,7 +96,7 @@ async def chat_completions(
     支持特性：
     - 真实的多轮对话上下文
     - 流式和非流式响应
-    - 通过 X-Conversation-ID 请求头或 conversation_id 参数继续对话
+    - 通过 conversation_id 参数继续对话
     """
     start_time = time.time()
     request_id = f"req-{uuid.uuid4().hex[:16]}"
@@ -107,12 +107,7 @@ async def chat_completions(
         # 验证 API Key
         api_key = await _verify_api_key(raw_request)
 
-        # 优先从请求头获取 conversation_id
-        conv_id = (
-            raw_request.headers.get("X-Conversation-ID")
-            or request.conversation_id
-            or ""
-        ).strip() or None
+        conv_id = (request.conversation_id or "").strip() or None
 
         logger.info(
             f"[ChatAPI] 收到请求: model={request.model}, stream={request.stream}, conv_id={conv_id}, ip={client_ip}"
@@ -236,9 +231,6 @@ async def chat_completions(
                 "X-Accel-Buffering": "no",
                 "X-Request-ID": request_id,
             }
-            if openai_conv_id:
-                response_headers["X-Conversation-ID"] = openai_conv_id
-
             return StreamingResponse(
                 stream_wrapper(),
                 media_type="text/event-stream",
@@ -278,8 +270,6 @@ async def chat_completions(
             )
 
             raw_response.headers["X-Request-ID"] = request_id
-            if openai_conv_id:
-                raw_response.headers["X-Conversation-ID"] = openai_conv_id
             logger.info(
                 f"[ChatAPI] 响应成功: conv_id={openai_conv_id}, duration={duration_ms}ms"
             )
@@ -345,17 +335,13 @@ async def create_response(
             f"[ResponseAPI] 收到请求: conv_id={request.conversation_id}, stream={request.stream}, ip={client_ip}"
         )
 
-        conv_id = (
-            raw_request.headers.get("X-Conversation-ID")
-            or request.conversation_id
-            or ""
-        ).strip()
+        conv_id = (request.conversation_id or "").strip()
         if not conv_id:
             raise HTTPException(
                 status_code=400,
                 detail={
                     "error": {
-                        "message": "缺少 conversation_id，请在请求体或 X-Conversation-ID 请求头中提供",
+                        "message": "缺少 conversation_id，请在请求体中提供",
                         "type": "invalid_request_error",
                         "code": "missing_conversation_id",
                         "request_id": request_id,
@@ -482,9 +468,6 @@ async def create_response(
                 "X-Accel-Buffering": "no",
                 "X-Request-ID": request_id,
             }
-            if openai_conv_id:
-                response_headers["X-Conversation-ID"] = openai_conv_id
-
             return StreamingResponse(
                 stream_wrapper(),
                 media_type="text/event-stream",
@@ -516,9 +499,6 @@ async def create_response(
             )
 
             raw_response.headers["X-Request-ID"] = request_id
-            if openai_conv_id:
-                raw_response.headers["X-Conversation-ID"] = openai_conv_id
-
             logger.info(
                 f"[ResponseAPI] 响应成功: conv_id={openai_conv_id}, duration={duration_ms}ms"
             )

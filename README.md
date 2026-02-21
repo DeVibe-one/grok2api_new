@@ -206,11 +206,10 @@ Content-Type: application/json
 }
 ```
 
-支持 `conversation_id` 参数或 `X-Conversation-ID` 请求头续接多轮对话。
+支持 `conversation_id` 参数续接多轮对话。
 
 响应头：
 - `X-Request-ID`：请求追踪 ID
-- `X-Conversation-ID`：当前会话 ID（存在会话时返回）
 
 在流式（SSE）且首次新建会话时，首个 chunk 也会携带稳定 `conversation_id`，可立即用于下一轮续接。
 
@@ -220,9 +219,9 @@ Content-Type: application/json
 POST /v1/responses
 Authorization: Bearer sk-test
 Content-Type: application/json
-X-Conversation-ID: conv-xxx
 
 {
+  "conversation_id": "conv-xxx",
   "model": "grok-4.2",
   "message": "继续讲下一步",
   "stream": false
@@ -230,8 +229,8 @@ X-Conversation-ID: conv-xxx
 ```
 
 说明：
-- `conversation_id` 可通过请求体 `conversation_id` 传入，也可通过 `X-Conversation-ID` 请求头传入（请求头优先）。
-- 若两者都缺失，会返回 `400`，错误码 `missing_conversation_id`，并附带 `request_id` 便于排查。
+- `conversation_id` 必须通过请求体传入。
+- 缺少 `conversation_id` 会返回 `400`，错误码 `missing_conversation_id`，并附带 `request_id` 便于排查。
 
 ### 模型列表
 
@@ -274,8 +273,8 @@ GET /health
 
 - **接口加固**：增强 OpenAI 请求模型校验（角色约束、空内容拦截、关键字段最小长度约束）。
 - **会话一致性**：修复会话清理时哈希索引残留问题，新增 `clear_all()` 统一清理入口。
-- **可观测性**：新增 `X-Request-ID` 与 `X-Conversation-ID` 响应头，错误响应附带 `request_id` 便于排障。
-- **体验增强**：`/v1/responses` 支持从 `X-Conversation-ID` 读取会话 ID（优先级高于 body），缺失时返回 `missing_conversation_id`。
+- **可观测性**：新增 `X-Request-ID` 响应头，错误响应附带 `request_id` 便于排障。
+- **体验增强**：`/v1/responses` 统一使用请求体 `conversation_id` 续接会话，缺失时返回 `missing_conversation_id`。
 - **流式续接优化**：新会话流式首包返回稳定 `conversation_id`，可立即用于下一轮续接。
 - **性能优化**：批量创建 API Key 改为单次落盘；请求日志分页读取改为切片策略。
 - **管理台优化**：后台与登录页错误提示解析增强，避免出现 `[object Object]`。
