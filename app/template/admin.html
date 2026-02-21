@@ -591,8 +591,23 @@
     let refreshInterval = null;
 
     // ==================== 工具函数 ====================
+    function storageGet(key) {
+      try {
+        return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function storageRemove(key) {
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+      } catch (_) {
+      }
+    }
+
     function getAuthHeaders() {
-      const token = localStorage.getItem('adminToken');
+      const token = storageGet('adminToken');
       return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
     }
 
@@ -614,7 +629,7 @@
 
     async function api(path, options = {}) {
       const res = await fetch(path, { ...options, headers: { ...getAuthHeaders(), ...(options.headers || {}) } });
-      if (res.status === 401) { localStorage.removeItem('adminToken'); location.href = '/admin/login'; return; }
+      if (res.status === 401) { storageRemove('adminToken'); location.href = '/admin/login'; return; }
       const text = await res.text();
       let data = null;
       try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
@@ -1110,11 +1125,11 @@
       try { await api('/admin/api/conversations/clear', { method: 'POST' }); showToast('会话已清空', 'success'); loadConversations(); } catch (e) { showToast('清空失败: ' + e.message, 'error'); }
     }
 
-    function logout() { localStorage.removeItem('adminToken'); location.href = '/admin/login'; }
+    function logout() { storageRemove('adminToken'); location.href = '/admin/login'; }
 
     // ==================== 初始化 ====================
     window.addEventListener('DOMContentLoaded', () => {
-      if (!localStorage.getItem('adminToken')) { location.href = '/admin/login'; return; }
+      if (!storageGet('adminToken')) { location.href = '/admin/login'; return; }
       refreshTokens();
     });
 

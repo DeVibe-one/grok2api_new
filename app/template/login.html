@@ -202,6 +202,23 @@
             return '登录失败';
         }
 
+        function storageGet(key) {
+            try {
+                return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function storageSet(key, value) {
+            try {
+                if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             btn.disabled = true;
@@ -217,9 +234,18 @@
                         password: fd.get('password')
                     })
                 });
-                const d = await r.json();
+                const text = await r.text();
+                let d = {};
+                try {
+                    d = text ? JSON.parse(text) : {};
+                } catch (_) {
+                    d = { message: '登录响应格式异常' };
+                }
                 if (d.success) {
-                    localStorage.setItem('adminToken', d.token);
+                    if (!storageSet('adminToken', d.token)) {
+                        showToast('登录成功，但无法写入本地存储，请检查浏览器隐私设置', 'error');
+                        return;
+                    }
                     location.href = '/admin';
                 } else {
                     showToast(parseLoginError(d), 'error');
@@ -245,13 +271,13 @@
         }
 
         window.addEventListener('DOMContentLoaded', () => {
-            const t = localStorage.getItem('adminToken');
+            const t = storageGet('adminToken');
             if (t) {
                 fetch('/admin/api/tokens', {
                     headers: { Authorization: `Bearer ${t}` }
                 }).then(r => {
                     if (r.ok) location.href = '/admin';
-                });
+                }).catch(() => {});
             }
         });
     </script>
