@@ -978,8 +978,7 @@ class GrokClient:
                                 # isThinking 也可能在不同层级
                                 if not is_image_mode:
                                     token_text = response_data.get("token")
-                                    # isThinking 在续对话时可能在 result 层而非 response_data 层
-                                    is_thinking = response_data.get("isThinking", result.get("isThinking", False))
+                                    is_thinking = response_data.get("isThinking", False)
                                     message_tag = response_data.get("messageTag", "")
 
                                     # 备用：token 在 result 顶层（继续对话时常见）
@@ -1312,8 +1311,7 @@ class GrokClient:
 
                             # 从 token 提取文本（非图片模式）
                             if not is_image_mode:
-                                # isThinking 在续对话时可能在 result 层而非 response_data 层
-                                is_thinking = response_data.get("isThinking", result.get("isThinking", False))
+                                is_thinking = response_data.get("isThinking", False)
                                 message_tag = response_data.get("messageTag", "")
 
                                 # 工具调用过程
