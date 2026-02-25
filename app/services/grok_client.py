@@ -197,7 +197,7 @@ class GrokClient:
         if image_urls:
             logger.info(f"[GrokClient] 检测到 {len(image_urls)} 张图片，开始上传...")
             for img_url in image_urls:
-                file_id, file_uri = await ImageUploadManager.upload(img_url, token)
+                file_id, _ = await ImageUploadManager.upload(img_url, token)
                 if file_id:
                     file_ids.append(file_id)
             logger.info(
@@ -1264,7 +1264,6 @@ class GrokClient:
             grok_response_id = None
             generated_images = []
             is_image_mode = False
-            is_in_thinking = False
 
             async for line in response.aiter_lines():
                 if not line:
@@ -1457,7 +1456,6 @@ class GrokClient:
                                             if show_thinking:
                                                 thinking_content += token_text
                                         else:
-                                            is_in_thinking = False
                                             content += token_text
 
                         # 直接从 result.modelResponse 提取（备用路径）

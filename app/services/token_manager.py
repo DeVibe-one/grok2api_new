@@ -2,8 +2,8 @@
 
 import time
 import asyncio
-from typing import Dict, List, Optional, Any, Set
-from dataclasses import dataclass, asdict, field
+from typing import Dict, List, Optional, Set
+from dataclasses import dataclass, asdict
 from app.core.logger import logger
 from app.core.storage import storage_manager
 
@@ -184,7 +184,7 @@ class TokenManager:
         self, token: str, *, name: Optional[str] = None, enabled: Optional[bool] = None
     ) -> bool:
         """更新 Token 元数据（名称/启用状态）"""
-        token = (token or "").strip()
+        token = self._normalize_token(token)
         if not token:
             return False
 
@@ -202,7 +202,7 @@ class TokenManager:
 
     async def delete_token(self, token: str) -> bool:
         """删除 Token"""
-        token = (token or "").strip()
+        token = self._normalize_token(token)
         if not token:
             return False
 
@@ -213,6 +213,98 @@ class TokenManager:
         logger.info(f"[TokenManager] 已删除 Token: {removed.name}")
         await self._save()
         return True
+
+    async def delete_tokens_batch(self, tokens: List[str]) -> dict:
+        """批量删除 Token（自动去重 + 单次保存）"""
+        removed = 0
+        not_found = 0
+        normalized_tokens = {
+            self._normalize_token(token) for token in (tokens or []) if token
+        }
+
+        for token in normalized_tokens:
+            if not token:
+                continue
+            if self.tokens.pop(token, None):
+                removed += 1
+            else:
+                not_found += 1
+
+        if removed > 0:
+            await self._save()
+            logger.info(
+                f"[TokenManager] 批量删除 Token: 成功 {removed}，未找到 {not_found}"
+            )
+
+        return {"removed": removed, "not_found": not_found}
+
+    @staticmethod
+    def _is_invalid_token_error(error: str) -> bool:
+        """判断错误信息是否表示 Token 已失效"""
+        if not error:
+            return False
+        error_lower = str(error).lower()
+        return any(
+            marker in error_lower
+            for marker in ["无效", "过期", "invalid", "expired", "http 401"]
+        )
+
+    async def delete_invalid_tokens(self, check_remote: bool = True) -> dict:
+        """删除失效 Token（支持本地判定 + 远端校验）"""
+        invalid_tokens: Set[str] = set()
+
+        # 本地快速判定：认证失败或已被禁用且失败原因为 auth
+        for token, info in list(self.tokens.items()):
+            if (
+                info.last_failure_reason == "auth"
+                or "认证失败" in (info.cooldown_reason or "")
+                or (not info.enabled and info.last_failure_reason == "auth")
+            ):
+                invalid_tokens.add(token)
+
+        # 远端校验：检测仍启用且未标记失效的 Token
+        if check_remote:
+            sem = asyncio.Semaphore(5)
+            candidates = [
+                token
+                for token, info in self.tokens.items()
+                if info.enabled and token not in invalid_tokens
+            ]
+
+            async def check_one(token: str):
+                async with sem:
+                    try:
+                        result = await self._check_rate_limits(token)
+                        if not result.get("success") and self._is_invalid_token_error(
+                            result.get("error", "")
+                        ):
+                            invalid_tokens.add(token)
+                            info = self.tokens.get(token)
+                            if info:
+                                info.enabled = False
+                                info.last_failure_reason = "auth"
+                                info.cooldown_reason = "认证失败"
+                    except Exception:
+                        # 校验异常不做失效判定，避免误删
+                        return
+
+            await asyncio.gather(*[check_one(token) for token in candidates])
+
+        if not invalid_tokens:
+            return {
+                "removed": 0,
+                "invalid_found": 0,
+                "not_found": 0,
+                "check_remote": check_remote,
+            }
+
+        delete_result = await self.delete_tokens_batch(list(invalid_tokens))
+        return {
+            "removed": delete_result["removed"],
+            "invalid_found": len(invalid_tokens),
+            "not_found": delete_result["not_found"],
+            "check_remote": check_remote,
+        }
 
     def is_in_cooldown(self, token: str) -> bool:
         """检查 Token 是否在冷却中"""
@@ -342,6 +434,7 @@ class TokenManager:
 
     async def clear_cooldown(self, token: str):
         """清除冷却"""
+        token = self._normalize_token(token)
         if token in self.tokens:
             self.tokens[token].cooldown_until = 0
             self.tokens[token].cooldown_reason = ""
@@ -378,6 +471,7 @@ class TokenManager:
 
     async def test_token(self, token: str) -> dict:
         """测试 Token 可用性并获取剩余额度"""
+        token = self._normalize_token(token)
         if token not in self.tokens:
             return {"success": False, "error": "Token 不存在"}
 

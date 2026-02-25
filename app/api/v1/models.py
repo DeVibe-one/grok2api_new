@@ -1,7 +1,7 @@
 """模型列表 API - 含模型到 Grok 内部参数的映射"""
 
 import time
-from typing import Optional, Tuple
+from typing import Tuple
 from fastapi import APIRouter, HTTPException
 
 from app.models.openai_models import ModelList, Model
@@ -14,28 +14,40 @@ router = APIRouter()
 
 MODEL_REGISTRY = {
     "grok-3": (
-        "grok-3", "MODEL_MODE_GROK_3",
-        "Grok 3", "Standard Grok 3 model",
+        "grok-3",
+        "MODEL_MODE_GROK_3",
+        "Grok 3",
+        "Standard Grok 3 model",
     ),
     "grok-3-mini": (
-        "grok-3", "MODEL_MODE_GROK_3_MINI_THINKING",
-        "Grok 3 Mini", "Grok 3 with mini thinking",
+        "grok-3",
+        "MODEL_MODE_GROK_3_MINI_THINKING",
+        "Grok 3 Mini",
+        "Grok 3 with mini thinking",
     ),
     "grok-4.1-thinking": (
-        "grok-4-1-thinking-1129", "MODEL_MODE_GROK_4_1_THINKING",
-        "Grok", "Grok",
+        "grok-4-1-thinking-1129",
+        "MODEL_MODE_GROK_4_1_THINKING",
+        "Grok",
+        "Grok",
     ),
     "grok-4.2-fast": (
-        "grok-420", "MODEL_MODE_FAST",
-        "Grok", "Grok",
+        "grok-420",
+        "MODEL_MODE_FAST",
+        "Grok",
+        "Grok",
     ),
     "grok-4.2": (
-        "grok-420", "MODEL_MODE_GROK_420",
-        "Grok 4.2", "Standard Grok 4.2 model",
+        "grok-420",
+        "MODEL_MODE_GROK_420",
+        "Grok 4.2",
+        "Standard Grok 4.2 model",
     ),
     "grok-expert": (
-        "grok-420", "MODEL_MODE_EXPERT",
-        "Grok 4.2 Thinking", "Grok 4.2 Thinking",
+        "grok-420",
+        "MODEL_MODE_EXPERT",
+        "Grok 4.2 Thinking",
+        "Grok 4.2 Thinking",
     ),
 }
 
@@ -72,6 +84,7 @@ def resolve_model(model_id: str) -> Tuple[str, str, str]:
 
 # ── API 路由 ──────────────────────────────────────────────
 
+
 @router.get("/models")
 async def list_models():
     """列出所有可用模型"""
@@ -89,8 +102,4 @@ async def get_model(model_id: str):
     if model_id not in MODEL_REGISTRY and model_id not in MODEL_ALIASES:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    return Model(
-        id=model_id,
-        created=int(time.time()),
-        owned_by="xai"
-    )
+    return Model(id=model_id, created=int(time.time()), owned_by="xai")

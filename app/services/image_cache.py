@@ -1,7 +1,6 @@
 """图片缓存服务 - 下载和缓存 Grok 生成的图片"""
 
 import asyncio
-import base64
 from pathlib import Path
 from typing import Optional
 from curl_cffi.requests import AsyncSession
@@ -11,16 +10,6 @@ from app.core.config import settings
 from app.services.headers import get_dynamic_headers
 
 
-# MIME 类型映射
-MIME_TYPES = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".bmp": "image/bmp",
-}
-DEFAULT_MIME = "image/jpeg"
 ASSETS_URL = "https://assets.grok.com"
 
 
@@ -112,19 +101,6 @@ class ImageCache:
         """获取已缓存的文件"""
         path = self._get_path(file_path)
         return path if path.exists() else None
-
-    @staticmethod
-    def to_base64(image_path: Path) -> Optional[str]:
-        """图片转 base64"""
-        try:
-            if not image_path.exists():
-                return None
-            data = base64.b64encode(image_path.read_bytes()).decode()
-            mime = MIME_TYPES.get(image_path.suffix.lower(), DEFAULT_MIME)
-            return f"data:{mime};base64,{data}"
-        except Exception as e:
-            logger.error(f"[ImageCache] 转换失败: {e}")
-            return None
 
     async def _cleanup(self):
         """清理超限缓存"""

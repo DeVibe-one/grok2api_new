@@ -1,6 +1,5 @@
 """图片上传管理器"""
 
-import asyncio
 import base64
 import re
 from typing import Tuple, Optional
@@ -17,11 +16,6 @@ UPLOAD_API = "https://grok.com/rest/app-chat/upload-file"
 TIMEOUT = 30
 BROWSER = "chrome120"
 
-# MIME类型
-MIME_TYPES = {
-    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-    '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-}
 DEFAULT_MIME = "image/jpeg"
 DEFAULT_EXT = "jpg"
 
@@ -46,7 +40,11 @@ class ImageUploadManager:
                 buffer, mime = await ImageUploadManager._download(image_input)
                 filename, _ = ImageUploadManager._get_info("", mime)
             else:
-                buffer = image_input.split(",")[1] if "data:image" in image_input else image_input
+                buffer = (
+                    image_input.split(",")[1]
+                    if "data:image" in image_input
+                    else image_input
+                )
                 filename, mime = ImageUploadManager._get_info(image_input)
 
             # 构建数据
@@ -68,7 +66,11 @@ class ImageUploadManager:
                 auth_token = f"sso={auth_token}"
             headers["Cookie"] = auth_token
 
-            proxies = {"http": settings.proxy_url, "https": settings.proxy_url} if settings.proxy_url else None
+            proxies = (
+                {"http": settings.proxy_url, "https": settings.proxy_url}
+                if settings.proxy_url
+                else None
+            )
 
             # 上传
             async with AsyncSession(impersonate=BROWSER) as session:
@@ -99,7 +101,10 @@ class ImageUploadManager:
         """检查是否为URL"""
         try:
             result = urlparse(input_str)
-            return all([result.scheme, result.netloc]) and result.scheme in ['http', 'https']
+            return all([result.scheme, result.netloc]) and result.scheme in [
+                "http",
+                "https",
+            ]
         except:
             return False
 
@@ -117,8 +122,8 @@ class ImageUploadManager:
                     logger.error(f"[Upload] 下载失败: {response.status_code}")
                     return "", ""
 
-                content_type = response.headers.get('content-type', DEFAULT_MIME)
-                if not content_type.startswith('image/'):
+                content_type = response.headers.get("content-type", DEFAULT_MIME)
+                if not content_type.startswith("image/"):
                     content_type = DEFAULT_MIME
 
                 b64 = base64.b64encode(response.content).decode()
@@ -145,7 +150,9 @@ class ImageUploadManager:
         ext = DEFAULT_EXT
 
         if "data:image" in image_data:
-            if match := re.search(r"data:([a-zA-Z0-9]+/[a-zA-Z0-9-.+]+);base64,", image_data):
+            if match := re.search(
+                r"data:([a-zA-Z0-9]+/[a-zA-Z0-9-.+]+);base64,", image_data
+            ):
                 mime = match.group(1)
                 ext = mime.split("/")[1]
 

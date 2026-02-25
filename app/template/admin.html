@@ -86,6 +86,18 @@
     .tab-btn:hover { color: #a1a1aa; }
     .tab-btn.tab-active { color: #fafafa; border-bottom-color: #fafafa; }
 
+    @media (max-width: 768px) {
+      .header { height: auto; min-height: 56px; padding: 10px 14px; }
+      .header-inner { gap: 8px; }
+      .container { padding: 14px; }
+      .panel-header { padding: 10px 12px; }
+      .panel-actions { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
+      .tabs { margin-bottom: 14px; }
+      .tab-btn { padding: 9px 12px; }
+      .tbl th, .tbl td { padding: 9px 10px; }
+      .modal-card { padding: 18px; }
+    }
+
     /* ===== Stat Cards ===== */
     .stats-grid { display: grid; gap: 12px; margin-bottom: 24px; }
     .stats-grid-6 { grid-template-columns: repeat(6, 1fr); }
@@ -174,6 +186,13 @@
     .btn-icon:hover { background: rgba(255, 255, 255, 0.06); color: #fafafa; }
     .btn-icon svg { width: 15px; height: 15px; }
     .btn-icon-danger:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+
+    .btn-warning {
+      background: transparent;
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.45);
+    }
+    .btn-warning:hover { color: #fcd34d; border-color: #fbbf24; opacity: 1; }
 
     /* ===== Input ===== */
     .input {
@@ -274,6 +293,33 @@
     .empty-state { padding: 48px 0; text-align: center; color: #52525b; font-size: 13px; }
     .flex-center { display: flex; align-items: center; justify-content: center; }
     .gap-4 { gap: 4px; }
+    .table-actions-wrap { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .token-bulk-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+    @media (max-width: 768px) {
+      .table-actions-wrap { align-items:flex-start; }
+      .token-bulk-actions { width:100%; }
+      .token-bulk-actions .btn { flex: 1 1 auto; justify-content:center; }
+      #tokenFilter { width: 100% !important; }
+    }
+
+    @media (max-width: 820px) {
+      #panelTokens .tbl thead { display: none; }
+      #panelTokens .tbl, #panelTokens .tbl tbody, #panelTokens .tbl tr, #panelTokens .tbl td {
+        display: block;
+        width: 100%;
+      }
+      #panelTokens .tbl tr {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 10px 12px;
+      }
+      #panelTokens .tbl td {
+        border: 0;
+        padding: 5px 0;
+      }
+      #panelTokens .tbl td.tc { text-align: left; }
+      #panelTokens .tbl td:last-child { padding-top: 8px; }
+    }
 
     /* ===== Checkbox ===== */
     input[type="checkbox"] { accent-color: #fafafa; width: 16px; height: 16px; }
@@ -380,14 +426,18 @@
       </div>
       <div class="panel">
         <div class="panel-header">
-          <input id="tokenFilter" type="text" placeholder="搜索 Token / 名称..." oninput="renderTokens()" class="input" style="width:220px;">
-          <div class="panel-actions">
-            <button onclick="refreshTokens()" class="btn-icon" title="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
-            <button onclick="refreshAllTokens()" class="btn-icon" title="刷新全部额度"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg></button>
-            <button onclick="openAddTokenModal()" class="btn btn-white">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              新增
-            </button>
+          <div class="table-actions-wrap" style="width:100%;">
+            <input id="tokenFilter" type="text" placeholder="搜索 Token / 名称..." oninput="renderTokens()" class="input" style="width:220px;">
+            <div class="token-bulk-actions">
+              <button onclick="refreshTokens()" class="btn-icon" title="刷新"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+              <button onclick="refreshAllTokens()" class="btn-icon" title="刷新全部额度"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg></button>
+              <button onclick="openAddTokenModal()" class="btn btn-white">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                新增
+              </button>
+              <button onclick="deleteSelectedTokens()" class="btn btn-danger">删除已选</button>
+              <button onclick="deleteInvalidTokens()" class="btn btn-warning">一键删失效</button>
+            </div>
           </div>
         </div>
         <div id="refreshProgress" class="hidden progress-bar">
@@ -397,6 +447,7 @@
         <div style="overflow-x:auto;">
           <table class="tbl">
             <thead><tr>
+              <th class="tc" style="width:56px;"><input type="checkbox" id="tokenSelectAll" onchange="toggleSelectAllTokens()"></th>
               <th style="padding-left:20px;">Token</th><th class="tc" style="width:64px;">状态</th>
               <th class="tc" style="width:64px;">类型</th>
               <th class="tc" style="width:64px;">冷却</th><th class="tc" style="width:64px;">额度</th>
@@ -586,6 +637,7 @@
   <script>
     // ==================== 全局变量 ====================
     let TOKENS = [], KEYS = [], CONVERSATIONS = [], LOGS = [];
+    const SELECTED_TOKENS = new Set();
     let CONFIG_SCHEMA = {};
     let hourlyChart = null, dailyChart = null;
     let refreshInterval = null;
@@ -628,7 +680,28 @@
     }
 
     async function api(path, options = {}) {
-      const res = await fetch(path, { ...options, headers: { ...getAuthHeaders(), ...(options.headers || {}) } });
+      const controller = new AbortController();
+      const timeoutMs = typeof options.timeout === 'number' ? options.timeout : 30000;
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const fetchOptions = {
+        ...options,
+        signal: controller.signal,
+        headers: { ...getAuthHeaders(), ...(options.headers || {}) }
+      };
+      delete fetchOptions.timeout;
+
+      let res;
+      try {
+        res = await fetch(path, fetchOptions);
+      } catch (err) {
+        if (err && err.name === 'AbortError') {
+          throw new Error('请求超时，请稍后重试');
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+
       if (res.status === 401) { storageRemove('adminToken'); location.href = '/admin/login'; return; }
       const text = await res.text();
       let data = null;
@@ -735,6 +808,10 @@
       try {
         const data = await api('/admin/api/tokens');
         TOKENS = data.tokens || [];
+        const valid = new Set(TOKENS.map(t => t.token));
+        Array.from(SELECTED_TOKENS).forEach(token => {
+          if (!valid.has(token)) SELECTED_TOKENS.delete(token);
+        });
         const st = data.stats || {};
         document.getElementById('statTotal').textContent = st.total_tokens ?? '-';
         document.getElementById('statEnabled').textContent = st.enabled_tokens ?? '-';
@@ -749,13 +826,23 @@
     function renderTokens() {
       const tbody = document.getElementById('tokenTableBody');
       const empty = document.getElementById('tokenEmptyState');
+      const selectAll = document.getElementById('tokenSelectAll');
       const q = (document.getElementById('tokenFilter').value || '').toLowerCase();
       const items = TOKENS.filter(t => !q || ((t.name || '') + ' ' + (t.token || '')).toLowerCase().includes(q));
 
-      if (!items.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+      if (!items.length) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        if (selectAll) {
+          selectAll.checked = false;
+          selectAll.indeterminate = false;
+        }
+        return;
+      }
       empty.classList.add('hidden');
 
       tbody.innerHTML = items.map(t => {
+        const checked = SELECTED_TOKENS.has(t.token) ? 'checked' : '';
         const statusBadge = t.enabled ? '<span class="badge badge-green">ON</span>' : '<span class="badge badge-gray">OFF</span>';
         const cooldownBadge = t.in_cooldown
           ? `<span class="badge badge-yellow" title="${esc(t.cooldown_reason)}">${Math.ceil(t.cooldown_remaining/60)}分</span>`
@@ -767,6 +854,7 @@
           : t.account_type === 'free' ? '<span class="badge badge-gray">Free</span>'
           : '<span class="badge badge-gray">未知</span>';
         return `<tr>
+          <td class="tc"><input type="checkbox" ${checked} onchange="toggleTokenSelect('${esc(t.token)}', this.checked)"></td>
           <td style="padding-left:20px;"><span class="code-chip" onclick="copyText('${esc(t.token)}')" title="点击复制">${esc(tokenPreview(t.token))}</span></td>
           <td class="tc">${statusBadge}</td>
           <td class="tc">${typeBadge}</td>
@@ -784,6 +872,31 @@
           </td>
         </tr>`;
       }).join('');
+
+      const selectedVisible = items.filter(t => SELECTED_TOKENS.has(t.token)).length;
+      if (selectAll) {
+        selectAll.checked = selectedVisible > 0 && selectedVisible === items.length;
+        selectAll.indeterminate = selectedVisible > 0 && selectedVisible < items.length;
+      }
+    }
+
+    function toggleTokenSelect(token, checked) {
+      if (!token) return;
+      if (checked) SELECTED_TOKENS.add(token);
+      else SELECTED_TOKENS.delete(token);
+      renderTokens();
+    }
+
+    function toggleSelectAllTokens() {
+      const selectAll = document.getElementById('tokenSelectAll');
+      const q = (document.getElementById('tokenFilter').value || '').toLowerCase();
+      const items = TOKENS.filter(t => !q || ((t.name || '') + ' ' + (t.token || '')).toLowerCase().includes(q));
+      const shouldSelect = !!(selectAll && selectAll.checked);
+      items.forEach(t => {
+        if (shouldSelect) SELECTED_TOKENS.add(t.token);
+        else SELECTED_TOKENS.delete(t.token);
+      });
+      renderTokens();
     }
 
     async function testToken(token) {
@@ -845,7 +958,56 @@
 
     async function deleteToken(token) {
       if (!confirm('确定删除此 Token？')) return;
-      try { await api('/admin/api/tokens', { method: 'DELETE', body: JSON.stringify({ token }) }); showToast('删除成功', 'success'); refreshTokens(); } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+      try {
+        await api('/admin/api/tokens', { method: 'DELETE', body: JSON.stringify({ token }) });
+        SELECTED_TOKENS.delete(token);
+        showToast('删除成功', 'success');
+        refreshTokens();
+      } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+    }
+
+    async function deleteSelectedTokens() {
+      const tokens = Array.from(SELECTED_TOKENS);
+      if (!tokens.length) {
+        showToast('请先选择要删除的 Token', 'info');
+        return;
+      }
+      if (!confirm(`确定删除已选的 ${tokens.length} 个 Token？`)) return;
+
+      try {
+        const res = await api('/admin/api/tokens/batch', { method: 'DELETE', body: JSON.stringify({ tokens }) });
+        const removed = Number(res?.removed || 0);
+        const notFound = Number(res?.not_found || 0);
+        SELECTED_TOKENS.clear();
+        showToast(`已删除 ${removed} 个${notFound > 0 ? `，未找到 ${notFound} 个` : ''}`, removed > 0 ? 'success' : 'info');
+        refreshTokens();
+      } catch (e) {
+        showToast('批量删除失败: ' + e.message, 'error');
+      }
+    }
+
+    async function deleteInvalidTokens() {
+      if (!confirm('将检测并删除失效 Token（401/过期/无效），确定继续？')) return;
+      try {
+        const res = await api('/admin/api/tokens/delete-invalid', {
+          method: 'POST',
+          body: JSON.stringify({ check_remote: true }),
+          timeout: 120000
+        });
+        const removed = Number(res?.removed || 0);
+        const found = Number(res?.invalid_found || 0);
+        if (removed > 0) {
+          showToast(`已删除失效 Token ${removed} 个`, 'success');
+        } else if (found > 0) {
+          showToast('检测到失效 Token，但删除时未命中', 'info');
+        } else {
+          showToast('未检测到失效 Token', 'info');
+        }
+        SELECTED_TOKENS.clear();
+        refreshTokens();
+      } catch (e) {
+        showToast('删除失效 Token 失败: ' + e.message, 'error');
+      }
     }
 
     async function clearCooldown(token) {

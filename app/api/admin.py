@@ -66,6 +66,14 @@ class TokenDeleteRequest(BaseModel):
     token: str = Field(..., min_length=1)
 
 
+class TokenBatchDeleteRequest(BaseModel):
+    tokens: List[str] = Field(..., min_length=1)
+
+
+class TokenDeleteInvalidRequest(BaseModel):
+    check_remote: bool = True
+
+
 class TokenTestRequest(BaseModel):
     token: str = Field(..., min_length=1)
 
@@ -249,6 +257,26 @@ async def admin_delete_token(
     return {"ok": True}
 
 
+@router.delete("/admin/api/tokens/batch")
+async def admin_batch_delete_tokens(
+    payload: TokenBatchDeleteRequest, _: bool = Depends(verify_admin_session)
+):
+    """批量删除 Token"""
+    result = await token_manager.delete_tokens_batch(payload.tokens)
+    return {"ok": True, **result}
+
+
+@router.post("/admin/api/tokens/delete-invalid")
+async def admin_delete_invalid_tokens(
+    payload: TokenDeleteInvalidRequest, _: bool = Depends(verify_admin_session)
+):
+    """删除失效 Token"""
+    result = await token_manager.delete_invalid_tokens(
+        check_remote=payload.check_remote
+    )
+    return {"ok": True, **result}
+
+
 @router.post("/admin/api/tokens/test")
 async def admin_test_token(
     payload: TokenTestRequest, _: bool = Depends(verify_admin_session)
@@ -405,6 +433,8 @@ async def admin_get_logs(
     limit: int = 100, offset: int = 0, _: bool = Depends(verify_admin_session)
 ):
     """获取请求日志"""
+    limit = max(1, min(limit, 1000))
+    offset = max(0, offset)
     return {
         "logs": request_logger.get_logs(limit, offset),
         "total": request_logger.get_total(),
