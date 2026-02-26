@@ -8,20 +8,21 @@ class ChatMessage(BaseModel):
     """聊天消息"""
 
     role: Literal["system", "user", "assistant", "tool"]
-    content: Union[str, List[Dict[str, Any]]]
+    content: Optional[Union[str, List[Dict[str, Any]]]] = None
     name: Optional[str] = None
 
     @field_validator("content")
     @classmethod
     def validate_content(
-        cls, value: Union[str, List[Dict[str, Any]]]
-    ) -> Union[str, List[Dict[str, Any]]]:
-        if isinstance(value, str):
-            if not value.strip():
-                raise ValueError("content cannot be empty")
+        cls, value: Optional[Union[str, List[Dict[str, Any]]]]
+    ) -> Optional[Union[str, List[Dict[str, Any]]]]:
+        # content 允许为 None（如 assistant 消息仅含 tool_calls 时）
+        if value is None:
             return value
-        if not value:
-            raise ValueError("content list cannot be empty")
+        if isinstance(value, str):
+            # 允许空字符串，交给下游过滤
+            return value
+        # list 类型直接返回，允许空列表
         return value
 
 

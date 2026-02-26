@@ -403,7 +403,7 @@ class GrokClient:
         if is_continue:
             # 继续对话：只发送最后一条新消息，完全依赖 Grok 的 conversationId 维护上下文
             last_msg = messages[-1]
-            content = last_msg.get("content", "")
+            content = last_msg.get("content") or ""
 
             # 处理多模态内容
             if isinstance(content, list):
@@ -430,7 +430,7 @@ class GrokClient:
 
             for msg in messages:
                 role = msg.get("role", "user")
-                content = msg.get("content", "")
+                content = msg.get("content") or ""
 
                 # 处理多模态内容
                 if isinstance(content, list):
