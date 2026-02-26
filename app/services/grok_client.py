@@ -987,6 +987,9 @@ class GrokClient:
                                         is_thinking = result.get(
                                             "isThinking", is_thinking
                                         )
+                                        # 继续对话时 messageTag 也在 result 顶层
+                                        if not message_tag:
+                                            message_tag = result.get("messageTag", "")
 
                                     # 工具调用过程：tool_usage_card 包含各种工具（搜索/代码/浏览/专家协商）
                                     if message_tag == "tool_usage_card":
@@ -1175,6 +1178,10 @@ class GrokClient:
                                 if token_text := result.get("token"):
                                     if isinstance(token_text, str):
                                         is_thinking = result.get("isThinking", False)
+                                        # 检查 result 顶层的 messageTag，过滤工具调用原始内容
+                                        result_message_tag = result.get("messageTag", "")
+                                        if result_message_tag in ("tool_usage_card", "raw_function_result"):
+                                            continue
                                         if show_thinking:
                                             if is_thinking:
                                                 if first_think_token:
