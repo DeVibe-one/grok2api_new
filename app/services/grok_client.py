@@ -987,9 +987,9 @@ class GrokClient:
                                         is_thinking = result.get(
                                             "isThinking", is_thinking
                                         )
-                                        # 继续对话时 messageTag 也在 result 顶层
-                                        if not message_tag:
-                                            message_tag = result.get("messageTag", "")
+                                    # messageTag 无论 token 来自哪里都可能在 result 顶层
+                                    if not message_tag:
+                                        message_tag = result.get("messageTag", "")
 
                                     # 工具调用过程：tool_usage_card 包含各种工具（搜索/代码/浏览/专家协商）
                                     if message_tag == "tool_usage_card":
@@ -1178,9 +1178,128 @@ class GrokClient:
                                 if token_text := result.get("token"):
                                     if isinstance(token_text, str):
                                         is_thinking = result.get("isThinking", False)
-                                        # 检查 result 顶层的 messageTag，过滤工具调用原始内容
+                                        # 检查 result 顶层的 messageTag，处理工具调用（读取 result 而非 response_data）
                                         result_message_tag = result.get("messageTag", "")
-                                        if result_message_tag in ("tool_usage_card", "raw_function_result"):
+                                        if result_message_tag == "tool_usage_card":
+                                            if (
+                                                token_text
+                                                and show_thinking
+                                                and settings.show_search
+                                            ):
+                                                rollout_id = result.get("rolloutId", "")
+                                                prefix = (
+                                                    f"[{rollout_id}] " if rollout_id else ""
+                                                )
+                                                tool_match = re.search(
+                                                    r"<xai:tool_name>(\w+)</xai:tool_name>",
+                                                    token_text,
+                                                )
+                                                tool_name = (
+                                                    tool_match.group(1)
+                                                    if tool_match
+                                                    else ""
+                                                )
+                                                args_match = re.search(
+                                                    r"<!\[CDATA\[(.+?)\]\]>",
+                                                    token_text,
+                                                    re.DOTALL,
+                                                )
+                                                tool_args = {}
+                                                if args_match:
+                                                    try:
+                                                        tool_args = json.loads(
+                                                            args_match.group(1)
+                                                        )
+                                                    except:
+                                                        pass
+
+                                                if not think_opened:
+                                                    yield "<think>\n"
+                                                    think_opened = True
+
+                                                if tool_name == "web_search":
+                                                    query = tool_args.get("query", "")
+                                                    if query:
+                                                        yield f"{prefix}🔍 搜索: {query}\n"
+                                                elif tool_name == "code_execution":
+                                                    code = tool_args.get("code", "")
+                                                    if code:
+                                                        lines_preview = code.strip().split(
+                                                            "\n"
+                                                        )[:2]
+                                                        preview = lines_preview[0]
+                                                        if len(lines_preview) > 1:
+                                                            preview += " ..."
+                                                        yield f"{prefix}💻 执行代码: {preview}\n"
+                                                elif tool_name == "browse_page":
+                                                    url = tool_args.get("url", "")
+                                                    if url:
+                                                        yield f"{prefix}🌐 浏览: {url}\n"
+                                                elif tool_name == "chatroom_send":
+                                                    to = tool_args.get("to", "")
+                                                    msg = tool_args.get("message", "")
+                                                    if msg:
+                                                        short_msg = msg[:100] + (
+                                                            "..." if len(msg) > 100 else ""
+                                                        )
+                                                        yield f"{prefix}💬 → {to}: {short_msg}\n"
+                                                else:
+                                                    yield f"{prefix}🔧 {tool_name}\n"
+                                            continue
+                                        if result_message_tag == "raw_function_result":
+                                            if show_thinking and settings.show_search:
+                                                rollout_id = result.get("rolloutId", "")
+                                                prefix = (
+                                                    f"[{rollout_id}] " if rollout_id else ""
+                                                )
+                                                if web_results := result.get(
+                                                    "webSearchResults"
+                                                ):
+                                                    if isinstance(web_results, dict):
+                                                        results_list = web_results.get(
+                                                            "results", []
+                                                        )
+                                                    elif isinstance(web_results, list):
+                                                        results_list = web_results
+                                                    else:
+                                                        results_list = []
+                                                    if results_list:
+                                                        if not think_opened:
+                                                            yield "<think>\n"
+                                                            think_opened = True
+                                                        yield f"{prefix}📄 找到 {len(results_list)} 条结果\n"
+                                                if code_result := result.get(
+                                                    "codeExecutionResult"
+                                                ):
+                                                    if not think_opened:
+                                                        yield "<think>\n"
+                                                        think_opened = True
+                                                    exit_code = code_result.get(
+                                                        "exitCode", -1
+                                                    )
+                                                    if exit_code == 0:
+                                                        stdout = code_result.get(
+                                                            "stdout", ""
+                                                        ).strip()
+                                                        if stdout:
+                                                            short_out = stdout[:200] + (
+                                                                "..."
+                                                                if len(stdout) > 200
+                                                                else ""
+                                                            )
+                                                            yield f"{prefix}✅ 执行成功: {short_out}\n"
+                                                        else:
+                                                            yield f"{prefix}✅ 执行成功\n"
+                                                    else:
+                                                        stderr = code_result.get(
+                                                            "stderr", ""
+                                                        ).strip()
+                                                        last_line = (
+                                                            stderr.split("\n")[-1]
+                                                            if stderr
+                                                            else "未知错误"
+                                                        )
+                                                        yield f"{prefix}❌ 执行失败: {last_line}\n"
                                             continue
                                         if show_thinking:
                                             if is_thinking:
